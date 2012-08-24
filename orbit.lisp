@@ -96,10 +96,10 @@ Includes:
   (* beta w0))
 (defmethod dalphads ((ff g) w0 s)
   "s-derivative of alpha given FF, W0, and S"
-  (* ff (- (/ (sin (* w0 s)) w0))))
+  (- (* (/ ff w0) (sin (* w0 s)))))
 (defmethod dbetads ((ff g) w0 s)
   "s-derivative of beta given FF, W0, and S"
-  (* ff (/ (cos (* w0 s)) w0)))
+  (* (/ ff w0) (cos (* w0 s))))
 (defmethod deds ((f g) (duds g) (sigma g) (u g))
   "s-derivative of energy"
   (scalar (*i f (*g3 duds sigma (revg u)))))
@@ -119,7 +119,7 @@ Expects a variable *data* containing sigma0 (initial orbit frame vector) and for
 	   (sigma (spin *ksh-sigma0* alpha))
 	   (r (spin sigma u))
 	   (f (funcall *ksh-forcefun* s x))
-	   (ff (*g3 f r u)))
+	   (ff (/ (*g3 f r u) (* 2 *mu*))))
       (make-hash
        :alpha (dalphads ff w0 s)
        :beta (dbetads ff w0 s)
@@ -322,27 +322,18 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 
 (defun testksh (data)
   "Propagate an orbit from test data"
-  (with-keys (s0 sf x0 forcefun sigma0) data
+  (with-keys (s0 sf x0 forcefun sigma0 mu) data
     (let ((*ksh-sigma0* sigma0)
-	  (*ksh-forcefun* forcefun))
+	  (*ksh-forcefun* forcefun)
+	  (*mu* mu))
       (rka #'ksheom s0 sf x0))))
-#|
-(defun sail-ideal-forcefun (s x)
-  (with-keys (r v) (ksh2rv x s sigma0)
-    (destructuring-bind (posuv tanuv orbuv) (rvbasis r v)
-      (let ((normuv (+ (* posuv (cos alpha))
-		       (* orbuv (* (sin alpha) (cos delta)))
-		       (* tanuv (* (sin alpha) (sin delta))))))
-	(* normuv
-	   (/ (* beta mu (expt (scalar (*i posuv normuv)) 2))
-	      (norme2 r)))))))
-|#
 
+;; NOTE: Something is very off with the sail forcing
 (defparameter *kshsailtest*
   (make-hash*
    basis (list (ve3 :c1 1) (ve3 :c10 1) (ve3 :c100 1))
    sigma0 (first basis)
-   alpha 0
+   alpha 0 ; (* -35.5 (/ pi 180))
    delta 0
    mu 1
    beta 0.1
@@ -363,6 +354,29 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
    sf (* pi 2))
   "Test data for KSH equations of motion with solar sail")
 
+(defparameter *kshsail2dtest*
+  (make-hash*
+   basis (list (ve2 :c1 1) (ve2 :c10 1))
+   sigma0 (first basis)
+   alpha 0
+   beta 0
+   mu 1
+   forcefun_0 #'(lambda (s x) (ve2))
+   forcefun_radial #'(lambda (s x)
+		       (with-keys (r v) (ksh2rv x s sigma0)
+			 (* (unitg r) beta mu (/ (norme2 r)))))
+   forcefun #'(lambda (s x)
+		       (with-keys (r v) (ksh2rv x s sigma0)
+			 (let ((n (rot (unitg r) (rotor (bve2 :c11 1) alpha))))
+			   (* n beta mu (expt (cos alpha) 2) (/ (norme2 r))))))
+   r0 (ve2 :c1 1)
+   v0 (ve2 :c10 1)
+   x0 (rv2ksh r0 v0 basis mu)
+   s0 0
+   sf (* pi 2))
+  "Test data for KSH EOM with solar sail in 2D")
+		    
+
 (defparameter *ksh-forcefun-sail-normal*
   #'(lambda (s x)
       (with-keys (r v) (ksh2rv x s *ksh-sigma0*)
@@ -379,3 +393,26 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
   "Equations of motion of a planet. Only the time propagates as a derivative of s. Used for fast integration of planetary orbits."
   (with-keys (alpha beta e) *ephemeris*
     (dtmds (u alpha beta (w0 e) s))))
+
+(defun ksh-traj-to-cart (result sigma0)
+  "Return cartesian coordinate trajectory given KSH trajectory results and orbit reference vector"
+  (loop for (s x) in result
+     collect (list (gethash :tm x)
+		   (ksh2rv x s sigma0))))
+
+(defun write-cart-traj (file trajdata)
+  "Write cartesian orbit data to format plotable by Gnuplot.
+Columns:
+1: Time
+2,3,4: Position
+5,6,7: Velocity"
+  (with-open-file (s file :direction :output :if-exists :supersede)
+    (format s "# Time X Y Z VX VY VZ~%")
+    (loop for (tm x) in trajdata
+       do (with-keys (r v) x
+	    (format s "~&~a"
+		    (substitute #\E #\d
+				(format nil "~a ~a ~a ~a ~a ~a ~a" 
+					tm 
+					(gref r #b1) (gref r #b10) (gref r #b100)
+					(gref v #b1) (gref v #b10) (gref v #b100))))))))
