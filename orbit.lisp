@@ -13,6 +13,17 @@ Includes:
 
 (in-package :bld-orbit)
 
+(defvar *sail2dcart*
+  (make-hash*
+   state 'cartstate
+   eom #'carteom
+   alpha 0
+   delta 0
+   beta 0
+   mu 1
+   forcefun #'(lambda (tm x) 0)))
+   
+
 ;; Define infinity norm method for BLD-ODE Runge-Kutta method
 (defmethod norminfx ((x g))
   (norminf x))
@@ -359,7 +370,7 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
    basis (list (ve2 :c1 1) (ve2 :c10 1))
    sigma0 (first basis)
    alpha 0
-   beta 0
+   beta 0.1
    mu 1
    forcefun_0 #'(lambda (s x) (ve2))
    forcefun_radial #'(lambda (s x)
