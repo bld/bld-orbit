@@ -1,5 +1,5 @@
 (defpackage :bld-orbit
-  (:use :cl :bld-ga :bld-e3 :bld-e2 :bld-ode)
+  (:use :cl :bld-ga :bld-e3 :bld-e2 :bld-ode :anaphora)
   (:shadowing-import-from :bld-gen
     + - * / expt
     sin cos tan
