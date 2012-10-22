@@ -108,6 +108,15 @@ Includes:
        :v (+ (funcall accfun tm x)
 	     (gravity tm x))))))
 
+(defparameter *sail-2d-cart-kepler-eg*
+  (make-instance 'sail))
+
+(defparameter *sail-2d-cart-normal-eg*
+  (make-instance
+   'sail
+   :pointfun #'sailpointingnormal
+   :lightness 0.1d0))
+
 (defparameter *sail-2d-cart-fixed-eg*
   (make-instance
    'sail
@@ -123,7 +132,7 @@ Includes:
    :rs (list (list (* 2 pi) (rotor (bve2 :c11 1) (/ pi 2)))
 	     (list (* 4 pi) (rotor (bve2 :c11 1) (/ pi 2 3))))))
 
-;; Kustaanheimo-Stiefel states
+;; Kustaanheimo-Stiefel spinor states
 
 (defclass spinorstate ()
   ((u :initarg :u :documentation "Spinor of position: r = u e1 (revg u)")
@@ -152,8 +161,30 @@ Includes:
       (make-instance
        'spinorstate
        :u duds
-       :duds (/ (+ (*g f r u) (* e u)) 2)
+       :duds (/ (+ (*g3 f r u) (* e u)) 2)
        :tm (norme2 u))))))
+
+(defparameter *sail-2d-spin-kepler-eg*
+  (make-instance
+   'sail
+   :accfun #'(lambda (s x) (ve2))
+   :lightness 0.0d0
+   :x0 (make-instance 
+	'spinorstate
+	:u (re2 :c0 1d0)
+	:duds (re2 :c11 -0.5d0)
+	:tm 0)))
+
+(defparameter *sail-2d-spin-normal-eg*
+  (make-instance
+   'sail
+   :pointfun #'sailpointingnormal
+   :lightness 0.1d0
+   :x0 (make-instance 
+	'spinorstate
+	:u (re2 :c0 1d0)
+	:duds (re2 :c11 -0.5d0)
+	:tm 0)))
 
 (defparameter *sail-2d-spin-fixed-eg*
   (make-instance
@@ -164,7 +195,88 @@ Includes:
 	:u (re2 :c0 1d0)
 	:duds (re2 :c11 -0.5d0)
 	:tm 0)
-   :rs (rotor (bve2 :c11 1) (* 35.5 (/ pi 180)))))
+   :rs (rotor (bve2 :c11 1d0) (* 35.5 (/ pi 180d0)))))
+
+;; Kustaanheimo-Stiefel Orbit Element equations of motion
+;; WORK IN PROGRESS - DOESN'T WORK YET
+
+(defclass ksstate ()
+  ((tm :initarg :tm :documentation "Time")
+   (alpha :initarg :alpha :documentation "U_0")
+   (beta :initarg :beta :documentation "dU/ds_0 / omega")
+   (e :initarg :e :documentation "Keplerian orbital energy"))
+  (:documentation "Kustaanheimo-Stiefel Orbit Element State"))
+
+(defstatearithmetic ksstate (tm alpha beta e))
+
+(defmethod positionv (s (x ksstate))
+  (with-slots (tm alpha beta e) x
+    (with-slots (basis) *sc*
+      (let* ((w0 (sqrt (/ e -2)))
+	     (u (+ (* alpha (cos (* w0 s))) (* beta (sin (* w0 s))))))
+	(spin (first basis) u)))))
+
+(defmethod print-object ((x ksstate) stream)
+  (with-slots (tm alpha beta e) x
+    (format stream "#<KSSTATE :TM ~a :ALPHA ~a :BETA ~a :E ~a>" tm alpha beta e)))
+
+(defmethod eom (s (x ksstate))
+  "Kustaanheimo-Stiefel Keplerian orbit element equations of motion"
+  (with-slots (tm alpha beta e) x
+    (with-slots (basis accfun) *sc*
+      (let* ((w0 (sqrt (/ e -2d0)))
+	     (u (+ (* alpha (cos (* w0 s))) (* beta (sin (* w0 s)))))
+	     (up (* w0 (- (* beta (cos (* w0 s))) (* alpha (sin (* w0 s))))))
+	     (r (spin (first basis) u))
+	     (rm (norme u))
+	     (v (* 2 rm (*g3 up (first basis) (revg u))))
+	     (f (funcall accfun s x))
+	     (ff (/ (*g3 f r u) 2d0)))
+	(make-instance
+	 'ksstate
+	 :tm rm
+	 :alpha (* -1 ff (/ w0) (sin (* w0 s)))
+	 :beta (* ff (/ w0) (cos (* w0 s)))
+	 :e (* rm (scalar (*i f v))))))))
+
+(defparameter *sail-2d-ks-kepler-eg*
+  (make-instance
+   'sail
+   :accfun #'(lambda (s x) (ve2))
+   :lightness 0.0d0
+   :x0 (make-instance
+	'ksstate
+	:tm 0d0
+	:alpha (re2 :c0 1d0)
+	:beta (re2 :c11 -1d0)
+	:e -0.5d0))
+  "Unperturbed Kepler problem")
+
+(defparameter *sail-2d-ks-normal-eg*
+  (make-instance
+   'sail
+   :pointfun #'sailpointingnormal
+   :lightness 0.1d0
+   :x0 (make-instance
+	'ksstate
+	:tm 0d0
+	:alpha (re2 :c0 1d0)
+	:beta (re2 :c11 -1d0)
+	:e -0.5d0))
+  "Sail pointed normal to sunlight")
+
+(defparameter *sail-2d-ks-fixed-eg*
+  (make-instance
+   'sail
+   :lightness 0.1d0
+   :x0 (make-instance
+	'ksstate
+	:tm 0d0
+	:alpha (re2 :c0 1d0)
+	:beta (re2 :c11 -1d0)
+	:e -0.5d0)
+   :rs (rotor (bve2 :c11 1d0) (* 35.5 (/ pi 180d0))))
+  "Sail pointed at fixed orientation to sunlight")
 
 ;; State conversion functions
 
@@ -185,6 +297,23 @@ Includes:
 	  :v (* 2 (*g3 dudt (first basis) (revg u))))
 	 tm)))))
 
+(defmethod to-cartesian (s (x ksstate))
+  "Convert Kustaanheimo-Stiefel orbit element state to cartesian"
+  (with-slots (tm alpha beta e) x
+    (with-slots (basis) *sc*
+      (let* ((w0 (sqrt (/ e -2d0)))
+	     (u (+ (* alpha (cos (* w0 s))) (* beta (sin (* w0 s)))))
+	     (up (* w0 (- (* beta (cos (* w0 s))) (* alpha (sin (* w0 s))))))
+	     (r (spin (first basis) u))
+	     (rm (norme2 u))
+	     (v (* 2 rm (*g3 up (first basis) (revg u)))))
+	(values
+	 (make-instance
+	  'cartstate
+	  :r r
+	  :v v)
+	 tm)))))
+
 (defmethod to-spinor (tm (x cartstate))
   "Convert cartesian state to spinor given time and X"
   (with-slots (r v) x
@@ -192,7 +321,7 @@ Includes:
       (let ((u (recoverspinor3d (norme r) (rvbasis r v) basis)))
 	(make-instance
 	 'spinorstate
-	 :u 
+	 :u u
 	 :duds (* 0.5d0 (*g3 v u (first basis)))
 	 :tm tm)))))
 
@@ -264,43 +393,6 @@ Columns:
 (defmethod sail-normal-force ((rv g) mu lightness)
   "Solar sail force function when sail normal to the sun. RV is the position vector from the sun to the sail."
   (* (unitg rv) (/ (* lightness mu) (norme2 rv))))
-
-;; Cartesian equations of motion
-
-(defvar *cart-forcefun* #'(lambda (tm x) (ve3)) "Cartesian coordinate force function")
-(defvar *cart-forcefun-sail-normal*
-  #'(lambda (tm x)
-      (sail-normal-force (gethash :r x) *mu* *lightness*)) "Cartesian coordinate force function with sail normal to the sun")
-(defmethod dvdt ((r g))
-  "Cartesian gravitational acceleration"
-  (- (* r (/ *mu* (expt (norme r) 3)))))
-
-
-(defmethod carteom ((tm number) (x hash-table))
-  "Cartesian orbital equations of motion using hash table states"
-  (with-keys (r v) x
-    (make-hash
-     :r v
-     :v (+ (dvdt r) (funcall *cart-forcefun* tm x)))))
-
-(defmethod carteom ((tm number) (x cartstate))
-  "Cartesian orbital equations of motion"
-  (with-slots (r v) x
-    (make-instance
-     'cartstate
-     :r v
-     :v (+ (dvdt r) (funcall *cart-forcefun* tm x)))))
-
-(defvar *sail2dcart*
-  (make-hash*
-   state 'cartstate
-   eom #'carteom
-   alpha 0
-   delta 0
-   beta 0
-   mu 1
-   forcefun #'(lambda (tm x) 0)))
-
 
 ;; Parameters used in equations of motion
 (defvar *ksh-forcefun* #'(lambda (s x) (ve3)) "KSH force function")
