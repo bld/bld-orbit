@@ -22,38 +22,42 @@ Includes:
 
 (defgeneric eom (s x) (:documentation "Equations of motion given independent variable S & state X"))
 
-(defgeneric positionv (s x) (:documentation "Position vector from independent variable & state"))
-
-(defgeneric velocityv (s x) (:documentation "Velocity vector from independent variable & state"))
+(defgeneric to-cartesian (s x) (:documentation "Convert a state to cartesian state"))
 
 ;; Acceleration functions
 
 (defun gravity (tm x)
   "Gravitational acceleration"
-  (let ((r (positionv tm x)))
-    (with-slots (mu) *sc*
-      (- (* (/ mu (norme2 r)) (unitg r))))))
+  (let ((xcart (to-cartesian tm x)))
+    (with-slots (r) xcart
+      (with-slots (mu) *sc*
+	(- (* (/ mu (norme2 r)) (unitg r)))))))
 
 (defun sailidealacc (s x)
   "Sail acceleration with fixed orientation relative to sail position frame"
-  (let ((r (positionv s x)))
-    (with-slots (lightness mu pointfun) *sc*
-      (let ((n (funcall pointfun s x)))
-	(* lightness mu (/ (norme2 r))
-	   (expt (scalar (*i (unitg r) n)) 2)
-	   n)))))
+  (let ((xcart (to-cartesian s x)))
+    (with-slots (r) xcart
+      (with-slots (lightness mu pointfun) *sc*
+	(let ((n (funcall pointfun s x)))
+	  (* lightness mu (/ (norme2 r))
+	     (expt (scalar (*i (unitg r) n)) 2)
+	     n))))))
 
 ;; Pointing functions
 
 (defun sailpointingfixed (s x)
   "Return sail normal vector"
-  (let ((r (positionv s x)))
-    (with-slots (rs) *sc*
-      (rot (unitg r) rs))))
+  (with-slots (rs basis) *sc*
+    (let ((xcart (to-cartesian s x)))
+      (with-slots (r v) xcart
+	(let* ((rvbasis (rvbasis r v))
+	       (rrv (recoverrotor3d rvbasis basis)))
+	  (rot (first basis) (*g rrv rs)))))))
 
 (defun sailpointingnormal (tm x)
   "Sail normal to sunlight"
-  (unitg (positionv tm x)))
+  (let ((xcart (to-cartesian tm x)))
+    (unitg (slot-value xcart 'r))))
 
 (defun sailpointingtable (tm x)
   "Sail pointing from lookup table"
@@ -93,10 +97,6 @@ Includes:
   (format stream "#<CARTSTATE :r ~a :v ~a>" (slot-value x 'r) (slot-value x 'v)))
 
 (defstatearithmetic cartstate (r v))
-
-(defmethod positionv (tm (x cartstate))
-  "Get position vector from cartesian state"
-  (slot-value x 'r))
 
 (defmethod eom (tm (x cartstate))
   "Solar sail cartesian equations of motion"
@@ -144,11 +144,6 @@ Includes:
   (format stream "#<SPINORSTATE :U ~a :DUDS ~a :TM ~a>" (slot-value x 'u) (slot-value x 'duds) (slot-value x 'tm)))
 
 (defstatearithmetic spinorstate (u duds tm))
-
-(defmethod positionv (s (x spinorstate))
-  (with-slots (u) x
-    (with-slots (basis) *sc*
-      (spin (first basis) u))))
 
 (defmethod eom (s (x spinorstate))
   "Spinor equations of motion: 2 dU/ds - E U = f r U, dt/ds = |r|"
@@ -209,13 +204,6 @@ Includes:
 
 (defstatearithmetic ksstate (tm alpha beta e))
 
-(defmethod positionv (s (x ksstate))
-  (with-slots (tm alpha beta e) x
-    (with-slots (basis) *sc*
-      (let* ((w0 (sqrt (/ e -2)))
-	     (u (+ (* alpha (cos (* w0 s))) (* beta (sin (* w0 s))))))
-	(spin (first basis) u)))))
-
 (defmethod print-object ((x ksstate) stream)
   (with-slots (tm alpha beta e) x
     (format stream "#<KSSTATE :TM ~a :ALPHA ~a :BETA ~a :E ~a>" tm alpha beta e)))
@@ -228,8 +216,8 @@ Includes:
 	     (u (+ (* alpha (cos (* w0 s))) (* beta (sin (* w0 s)))))
 	     (up (* w0 (- (* beta (cos (* w0 s))) (* alpha (sin (* w0 s))))))
 	     (r (spin (first basis) u))
-	     (rm (norme u))
-	     (v (* 2 rm (*g3 up (first basis) (revg u))))
+	     (rm (norme2 u))
+	     (v (* 2 (/ rm) (*g3 up (first basis) (revg u))))
 	     (f (funcall accfun s x))
 	     (ff (/ (*g3 f r u) 2d0)))
 	(make-instance
@@ -280,9 +268,12 @@ Includes:
 
 ;; State conversion functions
 
-(defgeneric to-cartesian (s x) (:documentation "Convert a state to cartesian state"))
-
 (defgeneric to-spinor (s x) (:documentation "Convert a state to spinor state"))
+
+(defgeneric to-ks (s x &key mu basis) (:documentation "Convert to a Kustaanheimo-Stiefel state"))
+
+(defmethod to-cartesian (tm (x cartstate))
+  (values x tm))
 
 (defmethod to-cartesian (s (x spinorstate))
   "Convert spinor state to cartesian coordinates given S and X"
@@ -303,15 +294,12 @@ Includes:
     (with-slots (basis) *sc*
       (let* ((w0 (sqrt (/ e -2d0)))
 	     (u (+ (* alpha (cos (* w0 s))) (* beta (sin (* w0 s)))))
-	     (up (* w0 (- (* beta (cos (* w0 s))) (* alpha (sin (* w0 s))))))
-	     (r (spin (first basis) u))
-	     (rm (norme2 u))
-	     (v (* 2 rm (*g3 up (first basis) (revg u)))))
+	     (up (* w0 (- (* beta (cos (* w0 s))) (* alpha (sin (* w0 s)))))))
 	(values
 	 (make-instance
 	  'cartstate
-	  :r r
-	  :v v)
+	  :r (spin (first basis) u)
+	  :v (* 2d0 (/ (norme2 u)) (*g3 up (first basis) (revg u))))
 	 tm)))))
 
 (defmethod to-spinor (tm (x cartstate))
@@ -325,12 +313,25 @@ Includes:
 	 :duds (* 0.5d0 (*g3 v u (first basis)))
 	 :tm tm)))))
 
+(defmethod to-ks (tm (x cartstate) &key mu basis)
+  (with-slots (r v) x
+    (let* ((rvbasis (rvbasis r v))
+	   (u (recoverspinor3d (norme r) rvbasis basis))
+	   (up (/ (*g3 v u (first basis)) 2d0))
+	   (e (/ (- (* 2 (norme2 up)) mu) (norme2 u)))
+	   (w0 (sqrt (/ e -2d0))))
+      (make-instance
+       'ksstate
+       :tm tm
+       :e e
+       :alpha u
+       :beta (/ up w0)))))
+
 (defun recoverrotor3d (fs es)
   "Recover a basis given new and original basis vectors"
-  (let ((psi (+ (apply #'+ (mapcar #'*g fs (apply #'recipbvs es))) 1)))
-    (if (zerogp psi)
-	(error "zero psi (180 deg rotation) unsupported")
-	(unitg psi))))
+  (let* ((esr (apply #'recipbvs es))
+	 (psi (mapcar #'(lambda (f er) (+ (*g f er) 1)) fs esr)))
+    (unitg (first psi))))	 
 
 (defun recoverspinor3d (r fs es)
   "Recover a spinor given orbit radius, new basis vectors, and original basis vectors"
