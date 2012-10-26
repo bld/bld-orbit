@@ -24,6 +24,33 @@ Includes:
 
 (defgeneric to-cartesian (s x) (:documentation "Convert a state to cartesian state"))
 
+(defgeneric to-spinor (s x) (:documentation "Convert a state to spinor state"))
+
+(defgeneric to-ks (s x) (:documentation "Convert to a Kustaanheimo-Stiefel state"))
+
+;; Rotor, spinor and basis functions
+
+(defun recoverrotor3d (fs es)
+  "Recover a basis given new and original basis vectors"
+  (let* ((esr (apply #'recipbvs es))
+	 (psi (mapcar #'(lambda (f er) (+ (*g f er) 1)) fs esr)))
+    (unitg (first psi))))	 
+
+(defun recoverspinor3d (r fs es)
+  "Recover a spinor given orbit radius, new basis vectors, and original basis vectors"
+  (* (recoverrotor3d fs es) (sqrt r)))
+
+(defun rvbasis (rv vv)
+  "Return a set of basis vectors derived from position and velocity"
+  (let* ((mombv (*o rv vv))
+	 (x (unitg rv))
+	 (y (unitg (*i rv mombv)))
+	 (z (when (= 3 (dimension rv) (dimension vv))
+	      (*x2 x y))))
+    (if (= 2 (dimension rv) (dimension vv)) ; 2D or 3D?
+	(list x y)
+	(list x y z))))
+
 ;; Acceleration functions
 
 (defun gravity (tm x)
@@ -111,8 +138,16 @@ Includes:
        :v (+ (funcall accfun tm x)
 	     (gravity tm x))))))
 
+(defmethod to-cartesian (tm (x cartstate))
+  (values x tm))
+
 (defparameter *sail-2d-cart-kepler-eg*
-  (make-instance 'sail))
+  (make-instance 
+   'sail
+   :x0 (make-instance
+	'cartstate
+	:r (ve2 :c1 1)
+	:v (ve2 :c10 1.1))))
 
 (defparameter *sail-2d-cart-normal-eg*
   (make-instance
@@ -162,16 +197,37 @@ Includes:
        :duds (/ (+ (*g3 f r u) (* e u)) 2)
        :tm (norme2 u))))))
 
+(defmethod to-cartesian (s (x spinorstate))
+  "Convert spinor state to cartesian coordinates given S and X"
+  (with-slots (u duds tm) x
+    (with-slots (basis) *sc*
+      (let* ((r (norme2 u))
+	     (dudt (/ duds r)))
+	(values 
+	 (make-instance
+	  'cartstate
+	  :r (spin (first basis) u)
+	  :v (* 2 (*g3 dudt (first basis) (revg u))))
+	 tm)))))
+
+(defmethod to-spinor (tm (x cartstate))
+  "Convert cartesian state to spinor given time and X"
+  (with-slots (r v) x
+    (with-slots (basis) *sc*
+      (let ((u (recoverspinor3d (norme r) (rvbasis r v) basis)))
+	(make-instance
+	 'spinorstate
+	 :u u
+	 :duds (* 0.5d0 (*g3 v u (first basis)))
+	 :tm tm)))))
+
 (defparameter *sail-2d-spin-kepler-eg*
   (make-instance
    'sail
    :accfun #'(lambda (s x) (ve2))
    :lightness 0.0d0
-   :x0 (make-instance 
-	'spinorstate
-	:u (re2 :c0 1d0)
-	:duds (re2 :c11 -0.5d0)
-	:tm 0)))
+   :x0 (let ((*sc* *sail-2d-cart-kepler-eg*))
+	 (to-spinor 0 (slot-value *sc* 'x0)))))
 
 (defparameter *sail-2d-spin-normal-eg*
   (make-instance
@@ -230,17 +286,43 @@ Includes:
 	 :beta (* ff (/ w0) (cos (* w0 s)))
 	 :e (* rm (scalar (*i f v))))))))
 
+(defmethod to-cartesian (s (x ksstate))
+  "Convert Kustaanheimo-Stiefel orbit element state to cartesian"
+  (with-slots (tm alpha beta e) x
+    (with-slots (basis) *sc*
+      (let* ((w0 (sqrt (/ e -2d0)))
+	     (u (+ (* alpha (cos (* w0 s))) (* beta (sin (* w0 s)))))
+	     (up (* w0 (- (* beta (cos (* w0 s))) (* alpha (sin (* w0 s)))))))
+	(values
+	 (make-instance
+	  'cartstate
+	  :r (spin (first basis) u)
+	  :v (* 2d0 (/ (norme2 u)) (*g3 up (first basis) (revg u))))
+	 tm)))))
+
+(defmethod to-ks (tm (x cartstate))
+  "Make KS element state from time & cartesian state"
+  (with-slots (r v) x
+    (with-slots (mu basis) *sc*
+      (let* ((rvbasis (rvbasis r v))
+	     (u (recoverspinor3d (norme r) rvbasis basis))
+	     (up (/ (*g3 v u (first basis)) 2d0))
+	     (e (/ (- (* 2 (norme2 up)) mu) (norme2 u)))
+	     (w0 (sqrt (/ e -2d0))))
+	(make-instance
+	 'ksstate
+	 :tm tm
+	 :e e
+	 :alpha u
+	 :beta (/ up w0))))))
+
 (defparameter *sail-2d-ks-kepler-eg*
   (make-instance
    'sail
    :accfun #'(lambda (s x) (ve2))
    :lightness 0.0d0
-   :x0 (make-instance
-	'ksstate
-	:tm 0d0
-	:alpha (re2 :c0 1d0)
-	:beta (re2 :c11 -1d0)
-	:e -0.5d0))
+   :x0 (let ((*sc* *sail-2d-cart-kepler-eg*))
+	 (to-ks 0 (slot-value *sc* 'x0))))
   "Unperturbed Kepler problem")
 
 (defparameter *sail-2d-ks-normal-eg*
@@ -268,88 +350,6 @@ Includes:
 	:e -0.5d0)
    :rs (rotor (bve2 :c11 1d0) (* 35.5 (/ pi 180d0))))
   "Sail pointed at fixed orientation to sunlight")
-
-;; State conversion functions
-
-(defgeneric to-spinor (s x) (:documentation "Convert a state to spinor state"))
-
-(defgeneric to-ks (s x &key mu basis) (:documentation "Convert to a Kustaanheimo-Stiefel state"))
-
-(defmethod to-cartesian (tm (x cartstate))
-  (values x tm))
-
-(defmethod to-cartesian (s (x spinorstate))
-  "Convert spinor state to cartesian coordinates given S and X"
-  (with-slots (u duds tm) x
-    (with-slots (basis) *sc*
-      (let* ((r (norme2 u))
-	     (dudt (/ duds r)))
-	(values 
-	 (make-instance
-	  'cartstate
-	  :r (spin (first basis) u)
-	  :v (* 2 (*g3 dudt (first basis) (revg u))))
-	 tm)))))
-
-(defmethod to-cartesian (s (x ksstate))
-  "Convert Kustaanheimo-Stiefel orbit element state to cartesian"
-  (with-slots (tm alpha beta e) x
-    (with-slots (basis) *sc*
-      (let* ((w0 (sqrt (/ e -2d0)))
-	     (u (+ (* alpha (cos (* w0 s))) (* beta (sin (* w0 s)))))
-	     (up (* w0 (- (* beta (cos (* w0 s))) (* alpha (sin (* w0 s)))))))
-	(values
-	 (make-instance
-	  'cartstate
-	  :r (spin (first basis) u)
-	  :v (* 2d0 (/ (norme2 u)) (*g3 up (first basis) (revg u))))
-	 tm)))))
-
-(defmethod to-spinor (tm (x cartstate))
-  "Convert cartesian state to spinor given time and X"
-  (with-slots (r v) x
-    (with-slots (basis) *sc*
-      (let ((u (recoverspinor3d (norme r) (rvbasis r v) basis)))
-	(make-instance
-	 'spinorstate
-	 :u u
-	 :duds (* 0.5d0 (*g3 v u (first basis)))
-	 :tm tm)))))
-
-(defmethod to-ks (tm (x cartstate) &key mu basis)
-  (with-slots (r v) x
-    (let* ((rvbasis (rvbasis r v))
-	   (u (recoverspinor3d (norme r) rvbasis basis))
-	   (up (/ (*g3 v u (first basis)) 2d0))
-	   (e (/ (- (* 2 (norme2 up)) mu) (norme2 u)))
-	   (w0 (sqrt (/ e -2d0))))
-      (make-instance
-       'ksstate
-       :tm tm
-       :e e
-       :alpha u
-       :beta (/ up w0)))))
-
-(defun recoverrotor3d (fs es)
-  "Recover a basis given new and original basis vectors"
-  (let* ((esr (apply #'recipbvs es))
-	 (psi (mapcar #'(lambda (f er) (+ (*g f er) 1)) fs esr)))
-    (unitg (first psi))))	 
-
-(defun recoverspinor3d (r fs es)
-  "Recover a spinor given orbit radius, new basis vectors, and original basis vectors"
-  (* (recoverrotor3d fs es) (sqrt r)))
-
-(defun rvbasis (rv vv)
-  "Return a set of basis vectors derived from position and velocity"
-  (let* ((mombv (*o rv vv))
-	 (x (unitg rv))
-	 (y (unitg (*i rv mombv)))
-	 (z (when (= 3 (dimension rv) (dimension vv))
-	      (*x2 x y))))
-    (if (= 2 (dimension rv) (dimension vv)) ; 2D or 3D?
-	(list x y)
-	(list x y z))))
 
 ;; Export functions
 
