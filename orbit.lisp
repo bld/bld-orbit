@@ -59,12 +59,15 @@ Includes:
   (let ((xcart (to-cartesian tm x)))
     (unitg (slot-value xcart 'r))))
 
-(defun sailpointingtable (tm x)
-  "Sail pointing from lookup table"
-  (with-slots (r) x
-    (with-slots (rs) *sc*
-      (rot (unitg r) 
-	   (second (find tm rs :test #'<= :key #'first))))))
+(defun sailpointingtable (s x)
+  "Return sail normal vector"
+  (with-slots (rs basis) *sc*
+    (let ((xcart (to-cartesian s x)))
+      (with-slots (r v) xcart
+	(let* ((rvbasis (rvbasis r v))
+	       (rrv (recoverrotor3d rvbasis basis))
+	       (rsi (second (find s rs :test #'<= :key #'first))))
+	  (rot (first basis) (*g rrv rsi)))))))
 
 ;; Sail class
 (defclass sail ()
