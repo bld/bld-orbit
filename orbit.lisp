@@ -26,7 +26,7 @@ Includes:
 
 (defgeneric to-spinor (s x) (:documentation "Convert a state to spinor state"))
 
-(defgeneric to-ks (s x) (:documentation "Convert to a Kustaanheimo-Stiefel state"))
+(defgeneric to-ks (s x) (:documentation "Convert to a Kustaanheimo-Stiefel orbit element state"))
 
 ;; Rotor, spinor and basis functions
 
@@ -53,48 +53,39 @@ Includes:
 
 ;; Acceleration functions
 
-(defun gravity (tm x)
+(defun gravity (s r)
   "Gravitational acceleration"
-  (let ((xcart (to-cartesian tm x)))
-    (with-slots (r) xcart
-      (with-slots (mu) *sc*
-	(- (* (/ mu (norme2 r)) (unitg r)))))))
+  (with-slots (mu) *sc*
+    (- (* (/ mu (norme2 r)) (unitg r)))))
 
-(defun sailidealacc (s x)
+(defun sailidealacc (s r v)
   "Sail acceleration with fixed orientation relative to sail position frame"
-  (let ((xcart (to-cartesian s x)))
-    (with-slots (r) xcart
-      (with-slots (lightness mu pointfun) *sc*
-	(let ((n (funcall pointfun s x)))
-	  (* lightness mu (/ (norme2 r))
-	     (expt (scalar (*i (unitg r) n)) 2)
-	     n))))))
+  (with-slots (lightness mu pointfun) *sc*
+    (let ((n (funcall pointfun s r v)))
+      (* lightness mu (/ (norme2 r))
+	 (expt (scalar (*i (unitg r) n)) 2)
+	 n))))
 
 ;; Pointing functions
 
-(defun sailpointingfixed (s x)
-  "Return sail normal vector"
+(defun sailpointingfixed (s r v)
+  "Sail pointed at fixed orientation with respect to position/velocity frame defined by rotor RS"
   (with-slots (rs basis) *sc*
-    (let ((xcart (to-cartesian s x)))
-      (with-slots (r v) xcart
-	(let* ((rvbasis (rvbasis r v))
-	       (rrv (recoverrotor3d rvbasis basis)))
-	  (rot (first basis) (*g rrv rs)))))))
+    (let* ((rvbasis (rvbasis r v))
+	   (rrv (recoverrotor3d rvbasis basis)))
+      (rot (first basis) (*g rrv rs)))))
 
-(defun sailpointingnormal (tm x)
+(defun sailpointingnormal (s r v)
   "Sail normal to sunlight"
-  (let ((xcart (to-cartesian tm x)))
-    (unitg (slot-value xcart 'r))))
+  (unitg r))
 
-(defun sailpointingtable (s x)
+(defun sailpointingtable (s r v)
   "Return sail normal vector"
   (with-slots (rs basis) *sc*
-    (let ((xcart (to-cartesian s x)))
-      (with-slots (r v) xcart
-	(let* ((rvbasis (rvbasis r v))
-	       (rrv (recoverrotor3d rvbasis basis))
-	       (rsi (second (find s rs :test #'<= :key #'first))))
-	  (rot (first basis) (*g rrv rsi)))))))
+    (let* ((rvbasis (rvbasis r v))
+	   (rrv (recoverrotor3d rvbasis basis))
+	   (rsi (second (find s rs :test #'<= :key #'first))))
+      (rot (first basis) (*g rrv rsi)))))
 
 ;; Sail class
 (defclass sail ()
@@ -107,7 +98,8 @@ Includes:
    (t0 :initarg :t0 :initform 0d0 :documentation "Initial time")
    (tf :initarg :tf :initform (* 2 pi) :documentation "Final time")
    (x0 :initarg :x0 :initform (make-instance 'cartstate :r (ve2 :c1 1) :v (ve2 :c10 1)))
-   (rs :initarg :rs :initform (re2 :c0 1d0) :documentation "Sail orientation rotor wrt orbital position frame")))
+   (rs :initarg :rs :initform (re2 :c0 1d0) :documentation "Sail orientation rotor wrt orbital position frame"))
+  (:documentation "Solar sail orbit problem"))
 
 ;; Propagate a trajectory
 (defmethod propagate ((sc sail))
@@ -135,8 +127,8 @@ Includes:
       (make-instance
        'cartstate
        :r v
-       :v (+ (funcall accfun tm x)
-	     (gravity tm x))))))
+       :v (+ (funcall accfun tm r v)
+	     (gravity tm r))))))
 
 (defmethod to-cartesian (tm (x cartstate))
   (values x tm))
@@ -144,6 +136,7 @@ Includes:
 (defparameter *sail-2d-cart-kepler-eg*
   (make-instance 
    'sail
+   :tf (* 4 pi)
    :x0 (make-instance
 	'cartstate
 	:r (ve2 :c1 1)
@@ -152,12 +145,14 @@ Includes:
 (defparameter *sail-2d-cart-normal-eg*
   (make-instance
    'sail
+   :tf (* 4 pi)
    :pointfun #'sailpointingnormal
    :lightness 0.1d0))
 
 (defparameter *sail-2d-cart-fixed-eg*
   (make-instance
    'sail
+   :tf (* 4 pi)
    :lightness 0.1
    :rs (rotor (bve2 :c11 1) (* 35.5 (/ pi 180)))))
 
@@ -190,7 +185,8 @@ Includes:
       (let* ((rm (norme2 u))
 	     (e (/ (- (* 2 (norme2 duds)) mu) rm))
 	     (r (spin (first basis) u))
-	     (f (funcall accfun s x)))
+	     (v (* 2 (*g3 duds (first basis) (revg u))))
+	     (f (funcall accfun s r v)))
       (make-instance
        'spinorstate
        :u duds
@@ -224,7 +220,8 @@ Includes:
 (defparameter *sail-2d-spin-kepler-eg*
   (make-instance
    'sail
-   :accfun #'(lambda (s x) (ve2))
+   :tf (* 4 pi)
+   :accfun #'(lambda (s r v) (ve2))
    :lightness 0.0d0
    :x0 (let ((*sc* *sail-2d-cart-kepler-eg*))
 	 (to-spinor 0 (slot-value *sc* 'x0)))))
@@ -232,6 +229,7 @@ Includes:
 (defparameter *sail-2d-spin-normal-eg*
   (make-instance
    'sail
+   :tf (* 4 pi)
    :pointfun #'sailpointingnormal
    :lightness 0.1d0
    :x0 (make-instance 
@@ -243,6 +241,7 @@ Includes:
 (defparameter *sail-2d-spin-fixed-eg*
   (make-instance
    'sail
+   :tf (* 4 pi)
    :lightness 0.1d0
    :x0 (make-instance 
 	'spinorstate
@@ -252,13 +251,13 @@ Includes:
    :rs (rotor (bve2 :c11 1d0) (* 35.5 (/ pi 180d0)))))
 
 ;; Kustaanheimo-Stiefel Orbit Element equations of motion
-;; WORK IN PROGRESS - DOESN'T WORK YET
+;; WORK IN PROGRESS - PERTURBED CASE DOESN'T WORK YET
 
 (defclass ksstate ()
   ((tm :initarg :tm :documentation "Time")
    (alpha :initarg :alpha :documentation "U_0")
    (beta :initarg :beta :documentation "dU/ds_0 / omega")
-   (e :initarg :e :documentation "Keplerian orbital energy"))
+   (e :initarg :e :documentation "Work done by the perturbing force"))
   (:documentation "Kustaanheimo-Stiefel Orbit Element State"))
 
 (defstatearithmetic ksstate (tm alpha beta e))
@@ -271,28 +270,34 @@ Includes:
   "Kustaanheimo-Stiefel Keplerian orbit element equations of motion"
   (with-slots (tm alpha beta e) x
     (with-slots (basis accfun) *sc*
-      (let* ((w0 (sqrt (/ e -2d0)))
-	     (u (+ (* alpha (cos (* w0 s))) (* beta (sin (* w0 s)))))
-	     (up (* w0 (- (* beta (cos (* w0 s))) (* alpha (sin (* w0 s))))))
-	     (r (spin (first basis) u))
-	     (rm (norme2 u))
-	     (v (* 2 (/ rm) (*g3 up (first basis) (revg u))))
-	     (f (funcall accfun s x))
-	     (ff (/ (*g3 f r u) 2d0)))
+      (let* ((e0 (slot-value (slot-value *sc* 'x0) 'e)) ; initial Kepler orbit energy
+	     (w (/ (- e0 e) 2d0)) ; work done by disturbing force
+	     (omega (sqrt (/ e -2d0))) ; average orbit angular velocity
+	     (omega0 (sqrt (/ e0 -2d0))) ; initial orbit angular velocity
+	     (u (+ (* alpha (cos (* omega s))) (* beta (sin (* omega s))))) ; spinor of orbit position
+	     (up (* omega (- (* beta (cos (* omega s))) (* alpha (sin (* omega s)))))) ; du/ds
+	     (r (spin (first basis) u)) ; position vector
+	     (rm (norme2 u)) ; position vector magnitude (radius)
+	     (v (* 2 (/ rm) (*g3 up (first basis) (revg u)))) ; velocity vector
+	     (f (funcall accfun s r v)) ; perturbing force
+	     (ff (/ (- (*g3 f r u) (* w u)) 2d0))) ; KS perturbing force
+	     ;;(ff (/ (*g3 f r u) 2d0))) ; KS perturbing force
 	(make-instance
 	 'ksstate
 	 :tm rm
-	 :alpha (* -1 ff (/ w0) (sin (* w0 s)))
-	 :beta (* ff (/ w0) (cos (* w0 s)))
+	 :alpha (* -1 ff (/ omega) (sin (* omega s)))
+	 :beta (* ff (/ omega) (cos (* omega s)))
 	 :e (* rm (scalar (*i f v))))))))
 
 (defmethod to-cartesian (s (x ksstate))
   "Convert Kustaanheimo-Stiefel orbit element state to cartesian"
   (with-slots (tm alpha beta e) x
     (with-slots (basis) *sc*
-      (let* ((w0 (sqrt (/ e -2d0)))
-	     (u (+ (* alpha (cos (* w0 s))) (* beta (sin (* w0 s)))))
-	     (up (* w0 (- (* beta (cos (* w0 s))) (* alpha (sin (* w0 s)))))))
+      (let* ((e0 (slot-value (slot-value *sc* 'x0) 'e))
+	     (omega0 (sqrt (/ e0 -2d0)))
+	     (omega (sqrt (/ e -2d0)))
+	     (u (+ (* alpha (cos (* omega s))) (* beta (sin (* omega s)))))
+	     (up (* omega (- (* beta (cos (* omega s))) (* alpha (sin (* omega s)))))))
 	(values
 	 (make-instance
 	  'cartstate
@@ -319,7 +324,8 @@ Includes:
 (defparameter *sail-2d-ks-kepler-eg*
   (make-instance
    'sail
-   :accfun #'(lambda (s x) (ve2))
+   :tf (* 4 pi)
+   :accfun #'(lambda (s r v) (ve2))
    :lightness 0.0d0
    :x0 (let ((*sc* *sail-2d-cart-kepler-eg*))
 	 (to-ks 0 (slot-value *sc* 'x0))))
@@ -328,6 +334,7 @@ Includes:
 (defparameter *sail-2d-ks-normal-eg*
   (make-instance
    'sail
+   :tf (* 4 pi)
    :pointfun #'sailpointingnormal
    :lightness 0.1d0
    :x0 (make-instance
@@ -341,6 +348,7 @@ Includes:
 (defparameter *sail-2d-ks-fixed-eg*
   (make-instance
    'sail
+   :tf (* 4 pi)
    :lightness 0.1d0
    :x0 (make-instance
 	'ksstate
