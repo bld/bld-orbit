@@ -34,7 +34,7 @@ Includes:
   "Recover a basis given new and original basis vectors"
   (let* ((esr (apply #'recipbvs es))
 	 (psi (mapcar #'(lambda (f er) (+ (*g f er) 1)) fs esr)))
-    (unitg (first psi))))	 
+    (unitg (first psi))))
 
 (defun recoverspinor3d (r fs es)
   "Recover a spinor given orbit radius, new basis vectors, and original basis vectors"
@@ -136,7 +136,7 @@ Includes:
 (defparameter *sail-2d-cart-kepler-eg*
   (make-instance 
    'sail
-   :tf (* 4 pi)
+   :tf (* 8 pi)
    :x0 (make-instance
 	'cartstate
 	:r (ve2 :c1 1)
@@ -220,7 +220,7 @@ Includes:
 (defparameter *sail-2d-spin-kepler-eg*
   (make-instance
    'sail
-   :tf (* 4 pi)
+   :tf (* 8 pi)
    :accfun #'(lambda (s r v) (ve2))
    :lightness 0.0d0
    :x0 (let ((*sc* *sail-2d-cart-kepler-eg*))
@@ -251,7 +251,7 @@ Includes:
    :rs (rotor (bve2 :c11 1d0) (* 35.5 (/ pi 180d0)))))
 
 ;; Kustaanheimo-Stiefel Orbit Element equations of motion
-;; WORK IN PROGRESS - PERTURBED CASE DOESN'T WORK YET
+;; WORK IN PROGRESS - PERTURBED CASE DIVERGES FROM CARTESIAN & SPINOR FORMULATIONS
 
 (defclass ksstate ()
   ((tm :initarg :tm :documentation "Time")
@@ -269,11 +269,9 @@ Includes:
 (defmethod eom (s (x ksstate))
   "Kustaanheimo-Stiefel Keplerian orbit element equations of motion"
   (with-slots (tm alpha beta e) x
-    (with-slots (basis accfun) *sc*
-      (let* ((e0 (slot-value (slot-value *sc* 'x0) 'e)) ; initial Kepler orbit energy
-	     (w (/ (- e0 e) 2d0)) ; work done by disturbing force
+    (with-slots (basis accfun x0) *sc*
+      (let* ((w (/ (- (slot-value x0 'e) e) 2d0)) ; work done by disturbing force
 	     (omega (sqrt (/ e -2d0))) ; average orbit angular velocity
-	     (omega0 (sqrt (/ e0 -2d0))) ; initial orbit angular velocity
 	     (u (+ (* alpha (cos (* omega s))) (* beta (sin (* omega s))))) ; spinor of orbit position
 	     (up (* omega (- (* beta (cos (* omega s))) (* alpha (sin (* omega s)))))) ; du/ds
 	     (r (spin (first basis) u)) ; position vector
@@ -281,7 +279,6 @@ Includes:
 	     (v (* 2 (/ rm) (*g3 up (first basis) (revg u)))) ; velocity vector
 	     (f (funcall accfun s r v)) ; perturbing force
 	     (ff (/ (- (*g3 f r u) (* w u)) 2d0))) ; KS perturbing force
-	     ;;(ff (/ (*g3 f r u) 2d0))) ; KS perturbing force
 	(make-instance
 	 'ksstate
 	 :tm rm
@@ -293,9 +290,7 @@ Includes:
   "Convert Kustaanheimo-Stiefel orbit element state to cartesian"
   (with-slots (tm alpha beta e) x
     (with-slots (basis) *sc*
-      (let* ((e0 (slot-value (slot-value *sc* 'x0) 'e))
-	     (omega0 (sqrt (/ e0 -2d0)))
-	     (omega (sqrt (/ e -2d0)))
+      (let* ((omega (sqrt (/ e -2d0)))
 	     (u (+ (* alpha (cos (* omega s))) (* beta (sin (* omega s)))))
 	     (up (* omega (- (* beta (cos (* omega s))) (* alpha (sin (* omega s)))))))
 	(values
@@ -313,18 +308,18 @@ Includes:
 	     (u (recoverspinor3d (norme r) rvbasis basis))
 	     (up (/ (*g3 v u (first basis)) 2d0))
 	     (e (/ (- (* 2 (norme2 up)) mu) (norme2 u)))
-	     (w0 (sqrt (/ e -2d0))))
+	     (omega (sqrt (/ e -2d0))))
 	(make-instance
 	 'ksstate
 	 :tm tm
 	 :e e
 	 :alpha u
-	 :beta (/ up w0))))))
+	 :beta (/ up omega))))))
 
 (defparameter *sail-2d-ks-kepler-eg*
   (make-instance
    'sail
-   :tf (* 4 pi)
+   :tf (* 8 pi)
    :accfun #'(lambda (s r v) (ve2))
    :lightness 0.0d0
    :x0 (let ((*sc* *sail-2d-cart-kepler-eg*))
@@ -384,165 +379,6 @@ Columns:
      collect (list (slot-value x 'tm) (to-cartesian s x))))
 
 ;; OLDER STUFF: NEED TO REWORK
-
-;; Kustaanheimo-Stiefel-Hestenes (KSH) state & equations of motion
-
-(defclass kshstate ()
-  ((alpha :initarg :alpha :documentation "Initial orbit spinor")
-   (beta :initarg :beta :documentation "Initial ")
-   (e :initarg :e :documentation "Specific Kepler orbit energy")
-   (tm :initarg :tm :documentation "Time")))
-
-(defmethod print-object ((x kshstate) stream)
-  (with-slots (alpha beta e tm) x
-    (format stream "#<KSHSTATE :alpha ~a :beta ~a :e ~a :tm ~a>" alpha beta e tm)))
-
-(defstatearithmetic kshstate (alpha beta e tm))
-
-;; Sail force functions
-(defvar *lightness* 0.1 "Sail lightness number")
-(defvar *mu* 1 "Gravitational parameter")
-(defmethod sail-normal-force ((rv g) mu lightness)
-  "Solar sail force function when sail normal to the sun. RV is the position vector from the sun to the sail."
-  (* (unitg rv) (/ (* lightness mu) (norme2 rv))))
-
-;; Parameters used in equations of motion
-(defvar *ksh-forcefun* #'(lambda (s x) (ve3)) "KSH force function")
-(defvar *ksh-sigma0* (ve3 :c1 1) "KSH reference unit position vector")
-
-;; Convenience functions for KSH EOM
-(defun w0 (e)
-  "Average orbit angular velocity given energy"
-  (sqrt (- (/ e 2))))
-(defmethod u ((alpha g) (beta g) w0 s)
-  "Orbit spinor given ALPHA, BETA, W0, and S"
-  (+ (* alpha (cos (* w0 s)))
-     (* beta (sin (* w0 s)))))
-(defmethod alpha-from-u-duds-w0-s ((u g) (duds g) w0 s)
-  "Alpha (U0) given U, DUDS, W0, and S"
-  (- (* u (cos (* w0 s)))
-     (* duds (/ (sin (* w0 s))
-		w0))))
-(defmethod beta-from-u-duds-w0-s ((u g) (duds g) w0 s)
-  "Beta (dU0/ds/w0) given U, DUDS, w0, and s"
-  (+ (* u (sin (* w0 s)))
-     (* duds (/ (cos (* w0 s))
-		w0))))
-(defmethod duds (alpha beta w0 s)
-  "s-derivative of spinor given BETA and W0"
-  (* (- (* beta (cos (* w0 s)))
-	(* alpha (sin (* w0 s))))
-     w0))
-(defmethod dalphads ((ff g) w0 s)
-  "s-derivative of alpha given FF, W0, and S"
-  (* ff (- (/ (sin (* w0 s))
-	      w0))))
-(defmethod dbetads ((ff g) w0 s)
-  "s-derivative of beta given FF, W0, and S"
-  (* ff (/ (cos (* w0 s))
-	   w0)))
-(defmethod deds ((f g) (duds g) (sigma g) (u g))
-  "s-derivative of energy"
-  (scalar (*i f (*g3 duds sigma (revg u)))))
-(defmethod dtmds ((u g))
-  "s-derivative of time"
-  (norme2 u))
-
-;; Hash table state
-(defmethod ksheom ((s number) (x hash-table))
-  "KS equations of motion in Hestenes GA form. 
-Orbit elements are: alpha (U0), beta (dU0/ds/w0), e (orbit energy), tm (time) 
-Expects a variable *data* containing sigma0 (initial orbit frame vector) and forcefun (force function of s, x, and *data*)"
-  (with-keys (alpha beta e tm) x
-    (let* ((w0 (w0 e))
-	   (u (u alpha beta w0 s))
-	   (duds (duds alpha beta w0 s))
-	   (sigma (spin *ksh-sigma0* alpha))
-	   (r (spin sigma u))
-	   (rm (norme2 u))
-	   (f (funcall *ksh-forcefun* s x))
-	   (ff (/ (*g3 f r u) 2)))
-      (make-hash
-       :alpha (dalphads ff w0 s)
-       :beta (dbetads ff w0 s)
-       :e (deds f duds sigma u)
-       :tm (dtmds u)))))
-
-(defmethod ksheom ((s number) (x kshstate))
-  "KS equations of motion in Hestenes GA form. 
-Orbit elements are: alpha (U0), beta (dU0/ds/w0), e (orbit energy), tm (time) 
-Expects a variable *data* containing sigma0 (initial orbit frame vector) and forcefun (force function of s, x, and *data*)"
-  (with-slots (alpha beta e tm) x
-    (let* ((w0 (w0 e))
-	   (u (u alpha beta w0 s))
-	   (duds (duds beta w0))
-	   (sigma (spin *ksh-sigma0* alpha))
-	   (r (spin sigma u))
-	   (f (funcall *ksh-forcefun* s x))
-	   (ff (/ (*g3 f r u) 2)))
-      (make-instance 
-       'kshstate
-       :alpha (dalphads ff w0 s)
-       :beta (dbetads ff w0 s)
-       :e (deds f duds sigma u)
-       :tm (dtmds u)))))
-
-;; Spinor/position/velocity conversion functions
-(defmethod rv2u ((rv g) (vv g) (basis list))
-  "Spinor (U) from position, velocity, and basis vectors"
-  (recoverspinor3d (norme rv) (rvbasis rv vv) basis))
-(defmethod rv2dudt ((vv g) (u g) (basis1 g))
-  "Time derivative of spinor (dU/dt) from velocity, spinor (U), and 1st basis vector"
-  (* (*g3 vv u basis1)
-     (/ (* 2 (norme2 u)))))
-(defun rv2spinors (rv vv basis)
-  "Convert position and velocity vectors to spinor (U) and spinor time derivative (dU/dt)"
-  (let ((u (rv2u rv vv basis)))
-    (make-hash
-     :u u
-     :dudt (rv2dudt vv u (first basis)))))
-(defun duds2dt (duds u)
-  "Spinor time derivative (dU/dt) from spinor s-derivative (dU/ds) and spinor (U)"
-  (/ duds (norme2 u)))
-(defun dudt2ds (dudt u)
-  "Spinor s-derivative (dU/ds) from spinot time derivative (dU/dt) and spinor (U)"
-  (* dudt (norme2 u)))
-(defun spinor2r (u basis1)
-  "Position vector from spinor (U) and 1st basis vector"
-  (spin basis1 u))
-(defmethod spinors2v ((dudt g) (u g) (basisx g))
-  "Velocity vector from spinor time derivative (dU/dt), spinor (U), and 1st basis vector"
-  (graden (* (*g3 dudt basisx (revg u)) 2d0) 1))
-(defun spinors2energy (u duds mu)
-  "Specific orbital energy (E) from spinor (U), spinor s-derivative (dU/ds), and gravitational parameter (mu)"
-  (/ (- (* 2 (norme2 duds)) mu) (norme2 u)))
-
-;; KSH state conversion functions
-(defun rv2ksh (rv vv basis mu)
-  "KSH state initialized at time=0 and s=0 from position and velocity vector, list of basis vectors, and gravitational parameter (mu)"
-  (with-keys (u dudt) (rv2spinors rv vv basis)
-    (let* ((duds (dudt2ds dudt u))
-	   (e (spinors2energy u duds mu)))
-      (make-hash
-       :alpha u 
-       :beta (/ duds (sqrt (- (/ e 2))))
-       :e e
-       :tm 0))))
-(defun ksh2spinors (x s)
-  "Spinor (U) and spinor s-derivative (dU/ds) from KSH state and S"
-  (with-keys (alpha beta e tm) x
-    (let ((w0 (w0 e)))
-      (make-hash
-       :u (u alpha beta w0 s) ; spinor
-       :duds (duds alpha beta w0 s))))) ; spinor s-derivative
-(defun ksh2rv (x s sigma0)
-  "Position and velocity vectors from KSH state, s, and initial orbit position unit vector (sigma0)"
-  (with-keys (alpha beta e tm) x
-    (with-keys (u duds) (ksh2spinors x s)
-      (let ((sigma (spin sigma0 alpha)))
-	(make-hash
-	 :r (spinor2r u sigma) ; position
-	 :v (spinors2v (duds2dt duds u) u sigma)))))) ; velocity
 
 ;; Classical orbit elements
 (defun coe2rv (sma ecc inc raan aop truan mu basis)
@@ -628,98 +464,4 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
      :raan (raan-rv nodev basis)
      :aop (aop-rv nodev eccv basis)
      :truan (truan-rv eccv rv vv))))
-
-;; Test KSH equations of motion
-(defparameter *kshtest*
-  (make-hash*
-   basis (list (ve3 :c1 1) (ve3 :c10 1) (ve3 :c100 1))
-   sigma0 (first basis)
-   forcefun #'(lambda (s x) (ve3))
-   r0 (ve3 :c1 1)
-   v0 (ve3 :c10 1.1)
-   mu 1
-   x0 (rv2ksh r0 v0 basis mu)
-   s0 0
-   sf (* pi 2))
-  "Test data for KSH equations of motion")
-
-(defun testksh (data)
-  "Propagate an orbit from test data"
-  (with-keys (s0 sf x0 forcefun sigma0 mu) data
-    (let ((*ksh-sigma0* sigma0)
-	  (*ksh-forcefun* forcefun)
-	  (*mu* mu))
-      (rka #'ksheom s0 sf x0))))
-
-;; NOTE: Something is very off with the sail forcing
-(defparameter *kshsailtest*
-  (make-hash*
-   basis (list (ve3 :c1 1) (ve3 :c10 1) (ve3 :c100 1))
-   sigma0 (first basis)
-   alpha 0 ; (* -35.5 (/ pi 180))
-   delta 0
-   mu 1
-   beta 0.1
-   forcefun #'(lambda (s x) 
-		(with-keys (r v) (ksh2rv x s sigma0)
-		  (destructuring-bind (posuv tanuv orbuv) (rvbasis r v)
-		    (let ((normuv (+ (* posuv (cos alpha))
-				     (* orbuv (* (sin alpha) (cos delta)))
-				     (* tanuv (* (sin alpha) (sin delta))))))
-		      (* normuv
-			 (/ (* beta mu (expt (scalar (*i posuv normuv)) 2))
-			    (norme2 r)))))))
-;;   forcefun #'sail-ideal-forcefun
-   r0 (ve3 :c1 1)
-   v0 (ve3 :c10 1)
-   x0 (rv2ksh r0 v0 basis mu)
-   s0 0
-   sf (* pi 2))
-  "Test data for KSH equations of motion with solar sail")
-
-(defparameter *kshsail2dtest*
-  (make-hash*
-   basis (list (ve2 :c1 1) (ve2 :c10 1))
-   sigma0 (first basis)
-   alpha 0
-   beta 0.1
-   mu 1
-   forcefun_0 #'(lambda (s x) (ve2))
-   forcefun_radial #'(lambda (s x)
-		       (with-keys (r v) (ksh2rv x s sigma0)
-			 (* (unitg r) beta mu (/ (norme2 r)))))
-   forcefun #'(lambda (s x)
-		       (with-keys (r v) (ksh2rv x s sigma0)
-			 (let ((n (rot (unitg r) (rotor (bve2 :c11 1) alpha))))
-			   (* n beta mu (expt (cos alpha) 2) (/ (norme2 r))))))
-   r0 (ve2 :c1 1)
-   v0 (ve2 :c10 1)
-   x0 (rv2ksh r0 v0 basis mu)
-   s0 0
-   sf (* pi 2))
-  "Test data for KSH EOM with solar sail in 2D")
-		    
-
-(defparameter *ksh-forcefun-sail-normal*
-  #'(lambda (s x)
-      (with-keys (r v) (ksh2rv x s *ksh-sigma0*)
-	(sail-normal-force r *mu* *lightness*))))
-
-(defvar *ephemeris*
-  (make-hash
-   :alpha (re2 :c0 1)
-   :beta (re2 :c11 -1)
-   :e -0.5)
-  "Ephemeris of a planet")
-
-(defun planet-ksh-eom (s x)
-  "Equations of motion of a planet. Only the time propagates as a derivative of s. Used for fast integration of planetary orbits."
-  (with-keys (alpha beta e) *ephemeris*
-    (dtmds (u alpha beta (w0 e) s))))
-
-(defun ksh-traj-to-cart (result sigma0)
-  "Return cartesian coordinate trajectory given KSH trajectory results and orbit reference vector"
-  (loop for (s x) in result
-     collect (list (gethash :tm x)
-		   (ksh2rv x s sigma0))))
 
