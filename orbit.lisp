@@ -376,7 +376,12 @@ Columns:
 (defun spinor-to-cartesian-traj (traj)
   "Convert results of PROPAGATE for spinor problem to cartesian trajectory"
   (loop for (s x) in traj
-     collect (list (slot-value x 'tm) (to-cartesian s x))))
+     collect (list (if (typep x 'cartstate) s (slot-value x 'tm)) (to-cartesian s x))))
+
+(defun propagate-and-write (filename sc)
+  "Propagate orbit & write it to file"
+  (let ((*sc* sc))
+    (write-cart-traj filename (spinor-to-cartesian-traj (propagate sc)))))
 
 ;; OLDER STUFF: NEED TO REWORK
 
