@@ -1,5 +1,5 @@
 DEVELOPMENT NOTES
------------------
+=================
 
 Using CELLS, I could make solar sail classes that automatically
 propogate the trajectory.
@@ -24,3 +24,30 @@ information in a SAIL class object, which is accessed by slot within
 functions for equations of motion, acceleration, and pointing. *sc*
 can be redefined to specific instances so that different problems can
 be solved.
+
+More Notes 3/11/2013
+--------------------
+
+BLD-ODE allows a state to be an arbitrary collection of objects so
+long as they have some form of state arithmetic defined on them. By
+default, they have hash tables & vectors defined. I just added
+lists. Problem is, I need to reach bach & access the parameters of the
+spacecraft that the state variable is referencing. One way is with an
+additional slot in a state class that access the body calling
+it. Trouble is, I'm creating these classes all over the place, and it
+would be laborious to repopulate it. Another way is to make it a class
+allocated slot, in which case I need to define a new state class for
+each and every state variable. Makes the *SC* variable look downright
+clean.
+
+3/12/2013
+---------
+
+So, the pieces I have are a geometric algebra library and Runge Kutta
+adaptive stepsize ODE solver. Now, I need a way to build up a state
+and equations of motion and solve them. The ODE solver will solve
+states of a variety of types.
+
+Suggestion: for the state variable and equation of motion, define a
+closure that contains the problem data, like spacecraft,
+bodies, and other parameters of the problem.
