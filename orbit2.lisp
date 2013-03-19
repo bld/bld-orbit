@@ -1,6 +1,6 @@
 (in-package :bld-orbit)
 
-;;; Rotor, spinor and basis functions
+(load "lol.lisp")
 
 (defun recoverrotor3d (fs es)
   "Recover a basis given new and original basis vectors"
@@ -22,8 +22,6 @@
     (if (= 2 (dimension rv) (dimension vv)) ; 2D or 3D?
 	(list x y)
 	(list x y z))))
-
-;;; Closure 
 
 (defclass cartesian-state ()
   ((r :initarg :r :documentation "Position vector, 2D or 3D Euclidean")
@@ -75,7 +73,7 @@
    :gravityfun #'gravity-inverse-square
    :x0 (make-instance 'cartesian-state :r (ve2 :c1 1d0) :v (ve2 :c10 1d0))
    :s0 0d0
-   :sf 10d0))
+   :sf 1d0))
 
 (let ((data *sail-data*))
   (defun eom-sail (s x)
@@ -85,3 +83,4 @@
        :r v
        :v (+ (funcall (gravityfun data) r data)
 	     (funcall (sailforcefun data) s r v data))))))
+
