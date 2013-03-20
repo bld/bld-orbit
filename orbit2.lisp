@@ -1,7 +1,5 @@
 (in-package :bld-orbit)
 
-(load "lol.lisp")
-
 (defun recoverrotor3d (fs es)
   "Recover a basis given new and original basis vectors"
   (let* ((esr (apply #'recipbvs es))
@@ -61,7 +59,23 @@
    (gravityfun :initarg :gravityfun :accessor gravityfun)
    (x0 :initarg :x0 :accessor x0)
    (s0 :initarg :s0 :accessor s0)
-   (sf :initarg :sf :accessor sf)))
+   (sf :initarg :sf :accessor sf)
+   (eom :initarg :eom :accessor eom)))
+
+(defmethod initialize-instance :after ((sail sail-data) &key)
+  (with-pandoric (data) (eom sail)
+    (setf data sail)))
+
+(defun eom-cartesian ()
+  "Return a pandoric-lambda closure of the cartesian equations of motion"
+  (let (data)
+    (plambda (s x) (data)
+      (with-slots (r v) x
+	(make-instance 
+	 'cartesian-state
+	 :r v
+	 :v (+ (funcall (sailforcefun data) s r v data)
+	       (funcall (gravityfun data) r data)))))))
 
 (defparameter *sail-data* 
   (make-instance
@@ -73,14 +87,22 @@
    :gravityfun #'gravity-inverse-square
    :x0 (make-instance 'cartesian-state :r (ve2 :c1 1d0) :v (ve2 :c10 1d0))
    :s0 0d0
-   :sf 1d0))
+   :sf 1d0
+   :eom (eom-cartesian)))
 
-(let ((data *sail-data*))
-  (defun eom-sail (s x)
-    (with-slots (r v) x
-      (make-instance
-       'cartesian-state
-       :r v
-       :v (+ (funcall (gravityfun data) r data)
-	     (funcall (sailforcefun data) s r v data))))))
+(defparameter *sail-data2* 
+  (make-instance
+   'sail-data
+   :mu 1d0
+   :lightness 0.2d0
+   :attitudefun #'sail-attitude-normal
+   :sailforcefun #'sail-force-null
+   :gravityfun #'gravity-inverse-square
+   :x0 (make-instance 'cartesian-state :r (ve2 :c1 1d0) :v (ve2 :c10 1d0))
+   :s0 0d0
+   :sf 1d0
+   :eom (eom-cartesian)))
 
+(defmethod propagate ((data sail-data))
+  (with-slots (eom s0 sf x0) data
+    (rka eom s0 sf x0)))
