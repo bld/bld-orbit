@@ -63,11 +63,12 @@
    (eom :initarg :eom :accessor eom)))
 
 (defmethod initialize-instance :after ((sail sail-data) &key)
+  "Sets the DATA variable in the EOM closure to the sail data object"
   (with-pandoric (data) (eom sail)
     (setf data sail)))
 
 (defun eom-cartesian ()
-  "Return a pandoric-lambda closure of the cartesian equations of motion"
+  "Return closure lambda with data variable referring to a data structure"
   (let (data)
     (plambda (s x) (data)
       (with-slots (r v) x
