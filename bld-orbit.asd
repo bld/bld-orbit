@@ -6,4 +6,4 @@
   :components
   ((:file "package")
    (:file "orbit2" :depends-on ("package")))
-  :depends-on ("bld-ga" "bld-e2" "bld-e3" "bld-ode" "bld-utils" "bld-gen" "anaphora" "lol"))
+  :depends-on ("bld-ga" "bld-e2" "bld-e3" "bld-ode" "bld-utils" "bld-gen" "anaphora" "lol" "cl-csv"))

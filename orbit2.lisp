@@ -67,6 +67,18 @@
   (with-pandoric (data) (eom sail)
     (setf data sail)))
 
+(defclass star-data ()
+  ((mu :initarg :mu :accessor mu)
+   (l0 :initarg :l0 :accessor l0)
+   (gravityfun :initarg :gravityfun :accessor gravityfun)
+   (luminosityfun :initarg :luminosityfun :accessor luminosityfun)
+   (posv :initarg :posv :accessor posv)))
+
+(defmethod initialize-instance :after ((star star-data) &key)
+  "Sets the DATA variable in the EOM closure to the planet data object"
+  (with-pandoric (data) (eom planet)
+    (setf data planet)))
+
 (defun eom-cartesian ()
   "Return closure lambda with data variable referring to a data structure"
   (let (data)
@@ -77,6 +89,15 @@
 	 :r v
 	 :v (+ (funcall (sailforcefun data) s r v data)
 	       (funcall (gravityfun data) r data)))))))
+
+(defun eom-cartesian-star ()
+  (let (data)
+    (plambda (s x) (data)
+      (with-slots (r v) x
+	(make-instance
+	 'cartesian-state
+	 :r v
+	 :v (funcall (gravityfun data) r data))))))
 
 (defparameter *sail-data* 
   (make-instance
@@ -107,3 +128,24 @@
 (defmethod propagate ((data sail-data))
   (with-slots (eom s0 sf x0) data
     (rka eom s0 sf x0)))
+
+(defun read-horizons-file (file)
+  "Read JPL HORIZONS text file"
+  (let ((*read-default-float-format* 'double-float)
+	(headers '(jdct ec qr in om w tp n ma ta a ad pr)))
+    (with-open-file (in file)
+      (loop for line = (read-line in nil)
+	 while line 
+	 until (equal (elt line 0) #\$))
+      (loop for line = (read-line in nil)
+	 while line
+	 until (equal (elt line 0) #\$)
+	 for newline = (mapcar #'(lambda (s) (read-from-string s nil))
+			       (remove-if (lambda (x) t) ; Remove 2nd & last CSV list items
+					  (butlast (read-csv-row (make-string-input-stream line)))
+					  :start 1 :count 1))
+	 collect (apply #'make-hash (loop for c in newline
+				       for header in headers
+				       collect (alexandria:make-keyword header)
+				       collect c))))))
+
