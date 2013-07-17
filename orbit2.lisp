@@ -1,10 +1,10 @@
 (in-package :bld-orbit)
 
 (defun recoverrotor3d (fs es)
-  "Recover a basis given new and original basis vectors"
-  (let* ((esr (apply #'recipbvs es))
-	 (psi (mapcar #'(lambda (f er) (+ (*g f er) 1)) fs esr)))
-    (unitg (first psi))))
+  "Recover a basis given new and original basis vectors
+Reference: Geometric Algebra for Physicists, p. 103, 4.3.3"
+  (unitg (+ (oneg (first fs))
+	    (apply #'+ (mapcar #'*g fs (apply #'recipbvs es))))))
 
 (defun recoverspinor3d (r fs es)
   "Recover a spinor given orbit radius, new basis vectors, and original basis vectors"
