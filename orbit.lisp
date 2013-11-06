@@ -73,7 +73,7 @@ Includes:
   (with-slots (rs basis) *sc*
     (let* ((rvbasis (rvbasis r v))
 	   (rrv (recoverrotor3d rvbasis basis)))
-      (rot (first basis) (*g rrv rs)))))
+      (rotateg (first basis) (*g rrv rs)))))
 
 (defun sailpointingnormal (s r v)
   "Sail normal to sunlight"
@@ -85,7 +85,7 @@ Includes:
     (let* ((rvbasis (rvbasis r v))
 	   (rrv (recoverrotor3d rvbasis basis))
 	   (rsi (second (find s rs :test #'<= :key #'first))))
-      (rot (first basis) (*g rrv rsi)))))
+      (rotateg (first basis) (*g rrv rsi)))))
 
 ;; Sail class
 (defclass sail ()
@@ -94,11 +94,11 @@ Includes:
    (accfun :initarg :accfun :initform #'sailidealacc :documentation "Sail acceleration function")
    (pointfun :initarg :pointfun :initform #'sailpointingfixed :documentation "Sail pointing function")
    (lightness :initarg :lightness :initform 0d0 :documentation "Ratio of solar to gravitational acceleration")
-   (basis :initarg :basis :initform (list (ve2 :c1 1) (ve2 :c10 1)))
+   (basis :initarg :basis :initform (list (ve2 :e1 1) (ve2 :e2 1)))
    (t0 :initarg :t0 :initform 0d0 :documentation "Initial time")
    (tf :initarg :tf :initform (* 2 pi) :documentation "Final time")
-   (x0 :initarg :x0 :initform (make-instance 'cartstate :r (ve2 :c1 1) :v (ve2 :c10 1)))
-   (rs :initarg :rs :initform (re2 :c0 1d0) :documentation "Sail orientation rotor wrt orbital position frame"))
+   (x0 :initarg :x0 :initform (make-instance 'cartstate :r (ve2 :e1 1) :v (ve2 :e2 1)))
+   (rs :initarg :rs :initform (re2 :s 1d0) :documentation "Sail orientation rotor wrt orbital position frame"))
   (:documentation "Solar sail orbit problem"))
 
 ;; Propagate a trajectory
@@ -139,8 +139,8 @@ Includes:
    :tf (* 8 pi)
    :x0 (make-instance
 	'cartstate
-	:r (ve2 :c1 1)
-	:v (ve2 :c10 1.1))))
+	:r (ve2 :e1 1)
+	:v (ve2 :e2 1.1))))
 
 (defparameter *sail-2d-cart-normal-eg*
   (make-instance
@@ -154,7 +154,7 @@ Includes:
    'sail
    :tf (* 4 pi)
    :lightness 0.1
-   :rs (rotor (bve2 :c11 1) (* 35.5 (/ pi 180)))))
+   :rs (rotor (bve2 :e1e2 1) (* 35.5 (/ pi 180)))))
 
 (defparameter *sail-2d-cart-table-eg*
   (make-instance
@@ -162,8 +162,8 @@ Includes:
    :lightness 0.1
    :tf (* 4 pi)
    :pointfun #'sailpointingtable
-   :rs (list (list (* 2 pi) (rotor (bve2 :c11 1) (/ pi 2)))
-	     (list (* 4 pi) (rotor (bve2 :c11 1) (/ pi 2 3))))))
+   :rs (list (list (* 2 pi) (rotor (bve2 :e1e2 1) (/ pi 2)))
+	     (list (* 4 pi) (rotor (bve2 :e1e2 1) (/ pi 2 3))))))
 
 ;; Kustaanheimo-Stiefel spinor states
 
@@ -234,8 +234,8 @@ Includes:
    :lightness 0.1d0
    :x0 (make-instance 
 	'spinorstate
-	:u (re2 :c0 1d0)
-	:duds (re2 :c11 -0.5d0)
+	:u (re2 :s 1d0)
+	:duds (re2 :e1e2 -0.5d0)
 	:tm 0)))
 
 (defparameter *sail-2d-spin-fixed-eg*
@@ -245,10 +245,10 @@ Includes:
    :lightness 0.1d0
    :x0 (make-instance 
 	'spinorstate
-	:u (re2 :c0 1d0)
-	:duds (re2 :c11 -0.5d0)
+	:u (re2 :s 1d0)
+	:duds (re2 :e1e2 -0.5d0)
 	:tm 0)
-   :rs (rotor (bve2 :c11 1d0) (* 35.5 (/ pi 180d0)))))
+   :rs (rotor (bve2 :e1e2 1d0) (* 35.5 (/ pi 180d0)))))
 
 ;; Kustaanheimo-Stiefel Orbit Element equations of motion
 ;; WORK IN PROGRESS - PERTURBED CASE DIVERGES FROM CARTESIAN & SPINOR FORMULATIONS
@@ -335,8 +335,8 @@ Includes:
    :x0 (make-instance
 	'ksstate
 	:tm 0d0
-	:alpha (re2 :c0 1d0)
-	:beta (re2 :c11 -1d0)
+	:alpha (re2 :s 1d0)
+	:beta (re2 :e1e2 -1d0)
 	:e -0.5d0))
   "Sail pointed normal to sunlight")
 
@@ -348,10 +348,10 @@ Includes:
    :x0 (make-instance
 	'ksstate
 	:tm 0d0
-	:alpha (re2 :c0 1d0)
-	:beta (re2 :c11 -1d0)
+	:alpha (re2 :s 1d0)
+	:beta (re2 :e1e2 -1d0)
 	:e -0.5d0)
-   :rs (rotor (bve2 :c11 1d0) (* 35.5 (/ pi 180d0))))
+   :rs (rotor (bve2 :e1e2 1d0) (* 35.5 (/ pi 180d0))))
   "Sail pointed at fixed orientation to sunlight")
 
 ;; Export functions
@@ -392,13 +392,13 @@ TRUAN true anomaly
 MU gravitational parameter
 BASIS list of 3 orthogonal basis vectors to express position & velocity in"
   (let* ((r-raan (rotor (*o (first basis) (second basis)) raan))
-	 (basis-raan (mapcar #'(lambda (x) (rot x r-raan)) basis))
+	 (basis-raan (mapcar #'(lambda (x) (rotateg x r-raan)) basis))
 	 (r-inc (rotor (*o (second basis-raan) (third basis-raan)) inc))
-	 (basis-inc (mapcar #'(lambda (x) (rot x r-inc)) basis-raan))
+	 (basis-inc (mapcar #'(lambda (x) (rotateg x r-inc)) basis-raan))
 	 (r-aop (rotor (*o (first basis-inc) (second basis-inc)) aop))
-	 (basis-aop (mapcar #'(lambda (x) (rot x r-aop)) basis-inc))
+	 (basis-aop (mapcar #'(lambda (x) (rotateg x r-aop)) basis-inc))
 	 (r-truan (rotor (*o (first basis-aop) (second basis-aop)) truan))
-	 (basis-truan (mapcar #'(lambda (x) (rot x r-truan)) basis-aop))
+	 (basis-truan (mapcar #'(lambda (x) (rotateg x r-truan)) basis-aop))
 	 (p (* sma (- 1 (* ecc ecc))))
 	 (r (/ p (+ 1 (* ecc (cos truan)))))
 	 (ruv (first basis-truan))
