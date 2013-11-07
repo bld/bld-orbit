@@ -378,6 +378,18 @@ Columns:
   (loop for (s x) in traj
      collect (list (slot-value x 'tm) (to-cartesian s x))))
 
+;;; COE equations of motion
+(defclass coestate ()
+  ((a :initarg :a :documentation "Semi-major axis")
+   (e :initarg :e :documentation "Eccentricity")
+   (i :initarg :i :documentation "Inclination")
+   (lan :initarg :lan :documentation "Longitude of ascending node")
+   (lop :initarg :lop :documentation "Longitude of periapsis")
+   (tm :initarg :tm :documentation "Time"))
+  (:documentation "Classical orbital elements with true anomaly as independent variable"))
+
+(defstatearithmetic coestate (a e i lan lop tm))
+
 ;; OLDER STUFF: NEED TO REWORK
 
 ;; Classical orbit elements
@@ -432,26 +444,29 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
   (- (*i (third basis) mombv)))
 (defun inc-rv (mombv basis)
   "inclination from momentum bivector and basis"
-  (acos (/ (scalar (*i (third basis) (dual mombv)))
-	   (norme mombv))))
+  (acos (scalar (dual (*o (third basis) (unitg mombv))))))
 (defun raan-rv (nodev basis)
   "right ascension of ascending node from node vector and basis"
-  (let ((tmp (acos (scalar (*i (first basis) (unitg nodev))))))
-    (if (< 0 (scalar (*i (second basis) nodev)))
-	(- (* 2 pi) tmp)
-	tmp)))
-(defun aop-rv (nodev eccv basis)
-  "argument of perigee from node vector, eccentricity vector, and basis"
-  (let ((tmp (acos (scalar (*i (unitg nodev) (unitg eccv))))))
-    (if (< 0 (scalar (*i (third basis) eccv)))
-	(- (* 2 pi) tmp)
-	tmp)))
-(defun truan-rv (eccv rv vv)
+  (let ((tmp (atan (scalar (*i nodev (second basis)))
+		   (scalar (*i nodev (first basis))))))
+    (if (< tmp 0) (+ tmp (* 2 pi)) tmp)))	 
+(defun aop-rv (nodev eccv mombv)
+  "argument of perigee from node vector, eccentricity vector, and momentum bivector"
+  (let* ((n (unitg nodev))
+	 (e (unitg eccv))
+	 (h (unitg mombv))
+	 (ov (*i n h))
+	 (tmp (atan (scalar (*i e ov)) (scalar (*i e n)))))
+    (if (< tmp 0) (+ tmp (* 2 pi)) tmp)))
+(defun truan-rv (eccv rv mombv)
   "true anomaly from eccentricity, position, and velocity vectors"
-  (let ((tmp (acos (scalar (*i (unitg eccv) (unitg rv))))))
-    (if (< 0 (scalar (*i rv vv)))
-	(- (* 2 pi) tmp)
-	tmp)))
+  (let* ((e (unitg eccv))
+	 (h (unitg mombv))
+	 (ruv (unitg rv))
+	 (ov (*i e h))
+	 (tmp (atan (scalar (*i ruv ov))
+		    (scalar (*i ruv e)))))
+    (if (< tmp 0) (+ tmp (* 2 pi)) tmp)))
 (defun rv2coe (rv vv mu basis)
   "Return classical orbital elements given position & velocity vectors, gravitational parameter, and a list of 3 basis vectors"
   (let* ((mombv (mombv-rv rv vv))
@@ -462,6 +477,6 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
      :ecc (norme eccv)
      :inc (inc-rv mombv basis)
      :raan (raan-rv nodev basis)
-     :aop (aop-rv nodev eccv basis)
-     :truan (truan-rv eccv rv vv))))
+     :aop (aop-rv nodev eccv mombv)
+     :truan (truan-rv eccv rv mombv))))
 
