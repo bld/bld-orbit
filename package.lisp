@@ -8,4 +8,4 @@
     asinh acosh atanh
     log exp sqrt abs
     min max signum)
-  (:import-from :bld-utils :make-hash :make-hash* :with-keys :maphash2))
+  (:import-from :bld-utils :make-hash :make-hash* :with-keys :maphash2 :lethash))
