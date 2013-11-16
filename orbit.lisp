@@ -13,25 +13,35 @@ Includes:
 
 (in-package :bld-orbit)
 
+(defparameter *au* 149597870691d0 "Astronomical unit (m)")
+
+(defparameter *c* 299792458d0 "Speed of light (m/s)")
+
+(defvar *lsun* 1361.7913d0 "Solar luminosity at 1 AU (W/m^2)")
+
+(defparameter *J2000* (list (ve3 :e1 1d0)
+			    (ve3 :e2 1d0)
+			    (ve3 :e3 1d0)) "J2000 inertial frame")
+
+(defparameter *musun* 1.32712440018d20 "Solar gravitational parameter, m^3/s^2")
+
 (defun new-frame (rotor frame)
   "New reference frame from rotor & original frame"
   (mapcar #'(lambda (basisvector) (rotateg basisvector rotor)) frame))
-
 
 ;; Define infinity norm method for BLD-ODE Runge-Kutta method on geometric algebra objects
 (defmethod norminfx ((x g))
   (norminf x))
 
-;; Variable to access problem specific data
-(defvar *sc*)
+(defgeneric energy (x sc) (:documentation "Keplerian orbit energy"))
 
-(defgeneric eom (s x) (:documentation "Equations of motion given independent variable S & state X"))
+(defgeneric eom (s x &optional param) (:documentation "Equations of motion given independent variable S & state X"))
 
-(defgeneric to-cartesian (s x) (:documentation "Convert a state to cartesian state"))
+(defgeneric to-cartesian (s x &optional sc) (:documentation "Convert a state to cartesian state"))
 
-(defgeneric to-spinor (s x) (:documentation "Convert a state to spinor state"))
+(defgeneric to-spinor (s x &optional sc) (:documentation "Convert a state to spinor state"))
 
-(defgeneric to-ks (s x) (:documentation "Convert to a Kustaanheimo-Stiefel orbit element state"))
+(defgeneric to-ks (s x &optional sc) (:documentation "Convert to a Kustaanheimo-Stiefel orbit element state"))
 
 ;; Rotor, spinor and basis functions
 
@@ -58,35 +68,34 @@ Includes:
 
 ;; Acceleration functions
 
-(defun gravity (s r)
+(defun gravity (s r mu)
   "Gravitational acceleration"
-  (with-slots (mu) *sc*
-    (- (* (/ mu (norme2 r)) (unitg r)))))
+  (- (* (/ mu (norme2 r)) (unitg r))))
 
-(defun sailidealacc (s r v)
+(defun sailidealacc (s r v sc)
   "Sail acceleration with fixed orientation relative to sail position frame"
-  (with-slots (lightness mu pointfun) *sc*
-    (let ((n (funcall pointfun s r v)))
+  (with-slots (lightness mu pointfun) sc
+    (let ((n (funcall pointfun s r v sc)))
       (* lightness mu (/ (norme2 r))
 	 (expt (scalar (*i (unitg r) n)) 2)
 	 n))))
 
 ;; Pointing functions
 
-(defun sailpointingfixed (s r v)
+(defun sailpointingfixed (s r v sc)
   "Sail pointed at fixed orientation with respect to position/velocity frame defined by rotor RS"
-  (with-slots (rs basis) *sc*
+  (with-slots (rs basis) sc
     (let* ((rvbasis (rvbasis r v))
 	   (rrv (recoverrotor3d rvbasis basis)))
       (rotateg (first basis) (*g rrv rs)))))
 
-(defun sailpointingnormal (s r v)
+(defun sailpointingnormal (s r v sc)
   "Sail normal to sunlight"
   (unitg r))
 
-(defun sailpointingtable (s r v)
+(defun sailpointingtable (s r v sc)
   "Return sail normal vector"
-  (with-slots (rs basis) *sc*
+  (with-slots (rs basis) sc
     (let* ((rvbasis (rvbasis r v))
 	   (rrv (recoverrotor3d rvbasis basis))
 	   (rsi (second (find s rs :test #'<= :key #'first))))
@@ -103,16 +112,14 @@ Includes:
    (t0 :initarg :t0 :initform 0d0 :documentation "Initial time")
    (tf :initarg :tf :initform (* 2 pi) :documentation "Final time")
    (x0 :initarg :x0 :initform (make-instance 'cartstate :r (ve2 :e1 1) :v (ve2 :e2 1)))
-   (rs :initarg :rs :initform (re2 :s 1d0) :documentation "Sail orientation rotor wrt orbital position frame")
-   (e0 :initarg :e0 :initform -0.5d0 :documentation "Initial orbital energy"))
+   (rs :initarg :rs :initform (re2 :s 1d0) :documentation "Sail orientation rotor wrt orbital position frame"))
   (:documentation "Solar sail orbit problem"))
 
 ;; Propagate a trajectory
 (defmethod propagate ((sc sail))
   "Propagate sailcraft trajectory"
-  (let ((*sc* sc)) ; bind *sc* variable for use by equations of motion and acceleration functions
-    (with-slots (eom t0 tf x0) sc
-      (rka eom t0 tf x0))))
+  (with-slots (eom t0 tf x0) sc
+    (rka eom t0 tf x0 :param sc)))
 
 ;; Cartesian state
 
@@ -126,17 +133,22 @@ Includes:
 
 (defstatearithmetic cartstate (r v))
 
-(defmethod eom (tm (x cartstate))
+(defmethod energy ((x cartstate) sc)
+  (with-slots (mu) sc
+    (with-slots (r v) x
+      (- (/ (scalar (exptg v 2)) 2) (/ mu (norme2 r))))))
+
+(defmethod eom (tm (x cartstate) &optional sc)
   "Solar sail cartesian equations of motion"
   (with-slots (r v) x
-    (with-slots (lightness mu accfun) *sc*
+    (with-slots (lightness mu accfun) sc
       (make-instance
        'cartstate
        :r v
-       :v (+ (funcall accfun tm r v)
-	     (gravity tm r))))))
+       :v (+ (funcall accfun tm r v sc)
+	     (gravity tm r mu))))))
 
-(defmethod to-cartesian (tm (x cartstate))
+(defmethod to-cartesian (tm (x cartstate) &optional sc)
   (values x tm))
 
 (defparameter *sail-2d-cart-kepler-eg*
@@ -146,7 +158,7 @@ Includes:
    :x0 (make-instance
 	'cartstate
 	:r (ve2 :e1 1)
-	:v (ve2 :e2 1.1))))
+	:v (ve2 :e2 1))))
 
 (defparameter *sail-2d-cart-normal-eg*
   (make-instance
@@ -184,44 +196,44 @@ Includes:
 
 (defstatearithmetic spinorstate (u duds tm))
 
-(defmethod energy ((x spinorstate))
+(defmethod energy ((x spinorstate) sc)
   "Keplerian orbit energy"
   (with-slots (u duds) x
-    (with-slots (mu) *sc*
+    (with-slots (mu) sc
       (/ (- (* 2 (norme2 duds)) mu) (norme2 u)))))
 
-(defmethod eom (s (x spinorstate))
+(defmethod eom (s (x spinorstate) &optional sc)
   "Spinor equations of motion: 2 dU/ds - E U = f r U, dt/ds = |r|"
   (with-slots (u duds tm) x
-    (with-slots (mu basis accfun) *sc*
+    (with-slots (mu basis accfun) sc
       (let* ((rm (norme2 u))
 	     (e (/ (- (* 2 (norme2 duds)) mu) rm))
 	     (r (spin (first basis) u))
 	     (v (* 2 (*g3 duds (first basis) (revg u))))
-	     (f (funcall accfun s r v)))
+	     (f (funcall accfun s r v sc)))
       (make-instance
        'spinorstate
        :u duds
        :duds (/ (+ (*g3 f r u) (* e u)) 2)
        :tm (norme2 u))))))
 
-(defmethod to-cartesian (s (x spinorstate))
+(defmethod to-cartesian (s (x spinorstate) &optional sc)
   "Convert spinor state to cartesian coordinates given S and X"
   (with-slots (u duds tm) x
-    (with-slots (basis) *sc*
+    (with-slots (basis) sc
       (let* ((r (norme2 u))
 	     (dudt (/ duds r)))
-	(values 
+	(values
 	 (make-instance
 	  'cartstate
 	  :r (spin (first basis) u)
 	  :v (* 2 (*g3 dudt (first basis) (revg u))))
 	 tm)))))
 
-(defmethod to-spinor (tm (x cartstate))
+(defmethod to-spinor (tm (x cartstate) &optional sc)
   "Convert cartesian state to spinor given time and X"
   (with-slots (r v) x
-    (with-slots (basis) *sc*
+    (with-slots (basis) sc
       (let ((u (recoverspinor3d (norme r) (rvbasis r v) basis)))
 	(make-instance
 	 'spinorstate
@@ -233,10 +245,9 @@ Includes:
   (make-instance
    'sail
    :tf (* 8 pi)
-   :accfun #'(lambda (s r v) (ve2))
+   :accfun #'(lambda (s r v sc) (ve2))
    :lightness 0.0d0
-   :x0 (let ((*sc* *sail-2d-cart-kepler-eg*))
-	 (to-spinor 0 (slot-value *sc* 'x0)))))
+   :x0 (to-spinor 0 (slot-value *sail-2d-cart-kepler-eg* 'x0) *sail-2d-cart-kepler-eg*)))
 
 (defparameter *sail-2d-spin-normal-eg*
   (make-instance
@@ -265,99 +276,124 @@ Includes:
 ;; Kustaanheimo-Stiefel Orbit Element equations of motion
 
 (defclass ksstate ()
-  ((alpha :initarg :alpha)
-   (beta :initarg :beta)
-   (w :initarg :w)
-   (t0 :initarg :t0)))
+  ((alpha :initarg :alpha :documentation "U at s=0")
+   (beta :initarg :beta :documentation "dU/ds / w0 at s=0")
+   (e :initarg :e :documentation "Keplerian orbital energy")
+   (t0 :initarg :t0 :documentation "Time at s=0"))
+  (:documentation "Kustaanheimo-Stiefel orbital element state"))
 
 (defstatearithmetic ksstate (alpha beta w t0))
 
-#|
-(defmethod energy ((x ksstate))
-  (with-slots (alpha beta w t0) x
-    (with-slots (mu e0) *sc*
-      (+ e0 
-|#
-
-(defmethod eom (s (x ksstate))
+(defmethod eom (s (x ksstate) &optional sc)
   "Kustaanheimo-Stiefel orbit element equations of motion from Arakida and Fukushima"
-  (with-slots (alpha beta w t0) x
-    (with-slots (basis mu accfun e0) *sc*
-      (let* ((hk0 (- e0))
-	     (w0 (sqrt (/ hk0 2)))
-	     (hk (+ (* 2 w) hk0))
-	     (omega (sqrt (/ hk 2)))
-	     (u (+ (* alpha (cos (* omega s)))
-		   (* beta (sin (* omega s)))))
-	     (duds (* omega 
-		      (- (* beta (cos (* omega s)))
-			 (* alpha (sin (* omega s))))))
-	     (rv (spin (first basis) u))
-	     (rm (norme rv))
-	     (vv (* 2 (/ rm) (*g3 duds (first basis) (revg u))))
-	     (fv (funcall accfun s rv vv))
-	     (f (- (dual fv)))
-	     (ff (/ (- (* rm f) (* w u)) 2)))
-	(make-instance
-	 'ksstate
-	 :alpha (* -1 ff (/ (sin (* w0 s)) w0))
-	 :beta (* ff (/ (cos (* w0 s)) w0))
-	 :w (*i f duds)
-	 :t0 (* (/ w0) 
-		(*i ff
-		    (+ (* (- (* alpha (sin (* w0 s)))
-			     (* beta (cos (* w0 s)))) s)
-		       (* (/ (* 2 w0))
-			  (+ (* alpha (cos (* w0 s)))
-			     (* beta (sin (* w0 s)))))))))))))
+  (with-slots (alpha beta e t0) x
+    (with-slots (basis mu accfun x0) sc
+      (with-slots ((e0 e)) x0
+	(let* ((hk0 (- e0))
+	       (w0 (sqrt (/ hk0 2)))
+	       (hk (+ (* 2 w) hk0))
+	       (u (+ (* alpha (cos (* w0 s)))
+		     (* beta (sin (* w0 s)))))
+	       (duds (* w0 
+			(- (* beta (cos (* w0 s)))
+			   (* alpha (sin (* w0 s))))))
+	       (rv (spin (first basis) u))
+	       (rm (norme rv))
+	       (vv (* 2 (/ rm) (*g3 duds (first basis) (revg u))))
+	       (fv (funcall accfun s rv vv sc))
+	       (f (- (dual fv)))
+	       (ff (/ (- (* rm f) (* w u)) 2)))
+	  (make-instance
+	   'ksstate
+	   :alpha (- (* ff (/ (sin (* w0 s)) w0)))
+	   :beta (* ff (/ (cos (* w0 s)) w0))
+	   :e (* rm (scalar (*i vv fv)))
+	   :t0 (* (/ w0)
+		  (scalar
+		   (*i ff
+		       (+ (* (- (* alpha (sin (* w0 s)))
+				(* beta (cos (* w0 s)))) s)
+			  (* (/ (* 2 w0))
+			     (+ (* alpha (cos (* w0 s)))
+				(* beta (sin (* w0 s)))))))))))))))
 
-(defmethod to-spinor (s (x ksstate))
+(defmethod to-spinor (s (x ksstate) &optional sc)
   "Convert KS state to spinor state"
-  (with-slots (alpha beta w t0) x
-    (with-slots (mu e0) *sc*
-      (let* ((hk0 (- e0))
-	     (w0 (sqrt (/ hk0 2)))
-	     (hk (+ (* 2 w) hk0))
-	     (omega (sqrt (/ hk 2))))
-	(make-instance
-	 'spinorstate
-	 :u (+ (* alpha (cos (* omega s)))
-	       (* beta (sin (* omega s))))
-	 :duds (* omega
-		  (- (* beta (cos (* omega s)))
-		     (* alpha (sin (* omega s)))))
-	 :tm (+ t0
-		(* (/ (+ (exptg alpha 2) (exptg beta 2)) 2) s)
-		(* (/ (- (exptg alpha 2) (exptg beta 2)) (* 4 w0)) (sin (* 2 w0 s)))
-		(* -1 (/ (*i alpha beta) (* 2 w0)) (cos (* 2 w0 s)))))))))
+  (with-slots (alpha beta e t0) x
+    (with-slots (mu x0) sc
+      (with-slots ((e0 e)) x0
+	(let* ((hk0 (- e0))
+	       (w0 (sqrt (/ hk0 2)))
+	       (hk (+ (* 2 w) hk0))
+	       (omega (sqrt (/ hk 2))))
+	  (make-instance
+	   'spinorstate
+	   :u (+ (* alpha (cos (* omega s)))
+		 (* beta (sin (* omega s))))
+	   :duds (* omega
+		    (- (* beta (cos (* omega s)))
+		       (* alpha (sin (* omega s)))))
+	   :tm (+ t0
+		  (* (/ (+ (exptg alpha 2) (exptg beta 2)) 2) s)
+		  (* (/ (- (exptg alpha 2) (exptg beta 2)) (* 4 w0)) (sin (* 2 w0 s)))
+		  (* -1 (/ (*i alpha beta) (* 2 w0)) (cos (* 2 w0 s))))))))))
 
-(defmethod to-cartesian (s (x ksstate))
+(defmethod to-cartesian (s (x ksstate) &optional sc)
   "Convert KS state to cartesian state"
   (with-slots (alpha beta w t0) x
-    (with-slots (basis mu e0) *sc*
-      (let* ((hk0 (- e0))
-	     (hk (+ (* 2 w) hk0))
-	     (omega (sqrt (/ hk 2)))
-	     (u (+ (* alpha (cos (* omega s)))
-		   (* beta (sin (* omega s)))))
-	     (duds (* omega 
-		      (- (* beta (cos (* omega s)))
-			 (* alpha (sin (* omega s))))))
-	     (rv (spin (first basis) u))
-	     (rm (norme rv))
-	     (vv (* 2 (/ rm) (*g3 duds (first basis) (revg u)))))
-	(make-instance
-	 'cartstate
-	 :r rv
-	 :v vv)))))
-#|
-(defmethod to-ks (s (x spinorstate))
-  (with-slots (u duds tm) x
-    (with-slots (mu x0) *sc*
-      (
-|#      
-      
+    (with-slots (basis mu x0) sc
+      (with-slots ((e0 e)) x0
+	(let* ((hk0 (- e0))
+	       (hk (+ (* 2 w) hk0))
+	       (omega (sqrt (/ hk 2)))
+	       (u (+ (* alpha (cos (* omega s)))
+		     (* beta (sin (* omega s)))))
+	       (duds (* omega 
+			(- (* beta (cos (* omega s)))
+			   (* alpha (sin (* omega s))))))
+	       (rv (spin (first basis) u))
+	       (rm (norme rv))
+	       (vv (* 2 (/ rm) (*g3 duds (first basis) (revg u)))))
+	  (values
+	   (make-instance
+	    'cartstate
+	    :r rv
+	    :v vv)
+	   tm))))))
 
+(defmethod to-ks (s (x spinorstate) &optional sc)
+  (with-slots (u duds tm) x
+    (with-slots (mu x0) sc
+      (let ((e0 (energy x0 sc)))
+	(let* ((hk0 (- e0))
+	       (w0 (sqrt (/ hk0 2)))
+	       (e (energy x sc))
+	       (hk (- e))
+	       (alpha (- (* u (cos (* w0 s)))
+			 (* (/ duds w0) (sin (* w0 s)))))
+	       (beta (+ (* u (sin (* w0 s)))
+			(* (/ duds w0) (cos (* w0 s))))))
+	(make-instance
+	 'ksstate
+	 :alpha alpha
+	 :beta beta
+	 :e e
+	 :t0 (- tm
+		(* (/ (+ (exptg alpha 2) (exptg beta 2)) 2) s)
+		(* (/ (- (exptg alpha 2) (exptg beta 2)) (* 4 w0)) (sin (* 2 w0 s)))
+		(- (* (/ (*i alpha beta) (* 2 w0)) (cos (* 2 w0 s)))))))))))
+
+(defmethod to-ks (tm (x cartstate) &optional sc)
+  (to-ks 0 (to-spinor 0 x sc) sc))
+
+(defparameter *sail-2d-ks-kepler-eg*
+  (make-instance
+   'sail
+   :tf (* 8 pi)
+   :accfun #'(lambda (s r v sc) (ve2))
+   :lightness 0d0
+   :x0 (to-ks 0 (slot-value *sail-2d-spin-kepler-eg* 'x0) *sail-2d-spin-kepler-eg*)))
+  
 ;; Export functions
 
 (defun write-cart-traj (file trajdata)
@@ -374,8 +410,8 @@ Columns:
 		    (substitute #\E #\d
 				(format nil "~a ~a ~a ~a ~a ~a ~a" 
 					tm 
-					(gref r #b1) (gref r #b10) (aif (gref r #b100) it 0)
-					(gref v #b1) (gref v #b10) (aif (gref v #b100) it 0))))))))
+					(gref r :e1) (gref r :e2) (aif (gref r :e3) it 0)
+					(gref v :e1) (gref v :e2) (aif (gref v :e3) it 0))))))))
 
 (defun spinor-to-cartesian-traj (traj)
   "Convert results of PROPAGATE for spinor problem to cartesian trajectory"
@@ -467,4 +503,3 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 		   (* (sin truan) (first basis-aop))))))
     (values rv vv)))
 
-;;; 
