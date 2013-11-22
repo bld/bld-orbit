@@ -267,14 +267,12 @@ Includes:
 (defparameter *sail-2d-spin-fixed-eg*
   (make-instance
    'sail
-   :tf (* 4 pi)
+   :tf (* 8 pi)
+   :pointfun #'sailpointingfixed
    :lightness 0.1d0
-   :x0 (make-instance 
-	'spinorstate
-	:u (re2 :s 1d0)
-	:duds (re2 :e1e2 -0.5d0)
-	:tm 0)
-   :rs (rotor (bve2 :e1e2 1d0) (* 35.5 (/ pi 180d0)))))
+   :x0 (to-spinor 0 (slot-value *sail-2d-cart-fixed-eg* 'x0) *sail-2d-cart-fixed-eg*)
+   :rs (slot-value *sail-2d-cart-fixed-eg* 'rs))
+  "Two-dimensional spinor EOM with fixed pointing sail example")
 
 ;; Kustaanheimo-Stiefel Orbit Element equations of motion
 
@@ -302,7 +300,6 @@ Includes:
 	(let* ((hk0 (- e0))
 	       (w0 (sqrt (/ hk0 2)))
 	       (hk (- e))
-	       ;;(w0 (sqrt (/ hk 2)))
 	       (w (/ (- hk hk0) 2))
 	       (u (+ (* alpha (cos (* w0 s)))
 		     (* beta (sin (* w0 s)))))
@@ -335,9 +332,7 @@ Includes:
       (with-slots ((e0 e)) x0
 	(let* ((hk0 (- e0))
 	       (w0 (sqrt (/ hk0 2)))
-	       (hk (- e))
-	       ;;(w0 (sqrt (/ hk 2)))
-	       )
+	       (hk (- e)))
 	  (make-instance
 	   'spinorstate
 	   :u (+ (* alpha (cos (* w0 s)))
