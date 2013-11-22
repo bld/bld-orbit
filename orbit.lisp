@@ -300,9 +300,9 @@ Includes:
     (with-slots (basis mu accfun x0) sc
       (with-slots ((e0 e)) x0
 	(let* ((hk0 (- e0))
-	       ;;(w0 (sqrt (/ hk0 2)))
+	       (w0 (sqrt (/ hk0 2)))
 	       (hk (- e))
-	       (w0 (sqrt (/ hk 2)))
+	       ;;(w0 (sqrt (/ hk 2)))
 	       (w (/ (- hk hk0) 2))
 	       (u (+ (* alpha (cos (* w0 s)))
 		     (* beta (sin (* w0 s)))))
@@ -313,7 +313,7 @@ Includes:
 	       (rm (norme rv))
 	       (vv (* 2 (/ rm) (*g3 duds (first basis) (revg u))))
 	       (fv (funcall accfun s rv vv sc))
-	       (ff (- (/ (*g fv rv) 2) (* w u))))
+	       (ff (- (/ (*g fv rv u) 2) (* w u))))
 	  (make-instance
 	   'ksstate
 	   :alpha (- (* ff (/ (sin (* w0 s)) w0)))
@@ -334,9 +334,9 @@ Includes:
     (with-slots (mu x0) sc
       (with-slots ((e0 e)) x0
 	(let* ((hk0 (- e0))
-	       ;;(w0 (sqrt (/ hk0 2)))
+	       (w0 (sqrt (/ hk0 2)))
 	       (hk (- e))
-	       (w0 (sqrt (/ hk 2)))
+	       ;;(w0 (sqrt (/ hk 2)))
 	       )
 	  (make-instance
 	   'spinorstate
@@ -360,10 +360,10 @@ Includes:
     (with-slots (mu x0) sc
       (let ((e0 (energy x0 sc)))
 	(let* ((hk0 (- e0))
-	       ;;(w0 (sqrt (/ hk0 2)))
+	       (w0 (sqrt (/ hk0 2)))
 	       (e (energy x sc))
 	       (hk (- e))
-	       (w0 (sqrt (/ hk 2)))
+	       ;;(w0 (sqrt (/ hk 2)))
 	       (alpha (- (* u (cos (* w0 s)))
 			 (* (/ duds w0) (sin (* w0 s)))))
 	       (beta (+ (* u (sin (* w0 s)))
@@ -397,9 +397,19 @@ Includes:
    :tf (* 8 pi)
    :pointfun #'sailpointingnormal
    :lightness 0.1d0
-   :x0 (to-ks 0 (slot-value *sail-2d-spin-kepler-eg* 'x0) *sail-2d-spin-kepler-eg*))
+   :x0 (to-ks 0 (slot-value *sail-2d-cart-normal-eg* 'x0) *sail-2d-cart-normal-eg*))
   "Two-dimensional Kustaanheimo-Stiefel EOM with sun-pointing sail example")
   
+(defparameter *sail-2d-ks-fixed-eg*
+  (make-instance
+   'sail
+   :tf (* 8 pi)
+   :pointfun #'sailpointingfixed
+   :lightness 0.1d0
+   :x0 (to-ks 0 (slot-value *sail-2d-cart-fixed-eg* 'x0) *sail-2d-cart-fixed-eg*)
+   :rs (slot-value *sail-2d-cart-fixed-eg* 'rs))
+  "Two-dimensional Kustaanheimo-Stiefel EOM with fixed pointing sail example")
+
 ;; Export functions
 
 (defun write-cart-traj (file trajdata)
