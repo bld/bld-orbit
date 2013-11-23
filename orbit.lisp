@@ -124,7 +124,7 @@ Includes:
 (defmethod propagate ((sc sail))
   "Propagate sailcraft trajectory"
   (with-slots (eom t0 tf x0) sc
-    (rka eom t0 tf x0 :param sc)))
+    (rka eom t0 tf x0 :param sc :hmax (/ (- tf t0) 10))))
 
 ;; Cartesian state
 
@@ -159,7 +159,7 @@ Includes:
 (defparameter *sail-2d-cart-kepler-eg*
   (make-instance 
    'sail
-   :tf (* 8 pi)
+   :tf (* 4 pi)
    :x0 (make-instance
 	'cartstate
 	:r (ve2 :e1 1)
@@ -249,7 +249,7 @@ Includes:
 (defparameter *sail-2d-spin-kepler-eg*
   (make-instance
    'sail
-   :tf (* 8 pi)
+   :tf (* 4 pi)
    :accfun #'(lambda (s r v sc) (ve2))
    :lightness 0.0d0
    :x0 (to-spinor 0 (slot-value *sail-2d-cart-kepler-eg* 'x0) *sail-2d-cart-kepler-eg*)))
@@ -267,7 +267,7 @@ Includes:
 (defparameter *sail-2d-spin-fixed-eg*
   (make-instance
    'sail
-   :tf (* 8 pi)
+   :tf (* 4 pi)
    :pointfun #'sailpointingfixed
    :lightness 0.1d0
    :x0 (to-spinor 0 (slot-value *sail-2d-cart-fixed-eg* 'x0) *sail-2d-cart-fixed-eg*)
@@ -280,7 +280,8 @@ Includes:
   ((alpha :initarg :alpha :documentation "U at s=0")
    (beta :initarg :beta :documentation "dU/ds / w0 at s=0")
    (e :initarg :e :documentation "Keplerian orbital energy")
-   (t0 :initarg :t0 :documentation "Time at s=0"))
+   (t0 :initarg :t0 :documentation "Time at s=0")
+   (tm :initarg :tm :documentation "Time"))
   (:documentation "Kustaanheimo-Stiefel orbital element state"))
 
 (let ((slots '(alpha beta e t0)))
@@ -290,11 +291,11 @@ Includes:
 	       collect slot
 	       collect (slot-value x slot)))))
 
-(defstatearithmetic ksstate (alpha beta e t0))
+(defstatearithmetic ksstate (alpha beta e t0 tm))
 
 (defmethod eom (s (x ksstate) &optional sc)
   "Kustaanheimo-Stiefel orbit element equations of motion from Arakida and Fukushima"
-  (with-slots (alpha beta e t0) x
+  (with-slots (alpha beta e t0 tm) x
     (with-slots (basis mu accfun x0) sc
       (with-slots ((e0 e)) x0
 	(let* ((hk0 (- e0))
@@ -316,18 +317,20 @@ Includes:
 	   :alpha (- (* ff (/ (sin (* w0 s)) w0)))
 	   :beta (* ff (/ (cos (* w0 s)) w0))
 	   :e (* rm (scalar (*i vv fv)))
-	   :t0 (* (/ w0)
-		  (scalar
+	   :t0 (/ (scalar
 		   (*i ff
 		       (+ (* (- (* alpha (sin (* w0 s)))
-				(* beta (cos (* w0 s)))) s)
+				(* beta (cos (* w0 s))))
+			     s)
 			  (* (/ (* 2 w0))
 			     (+ (* alpha (cos (* w0 s)))
-				(* beta (sin (* w0 s)))))))))))))))
+				(* beta (sin (* w0 s))))))))
+		  w0)
+	   :tm rm))))))
 
 (defmethod to-spinor (s (x ksstate) &optional sc)
   "Convert KS state to spinor state"
-  (with-slots (alpha beta e t0) x
+  (with-slots (alpha beta e t0 tm) x
     (with-slots (mu x0) sc
       (with-slots ((e0 e)) x0
 	(let* ((hk0 (- e0))
@@ -340,10 +343,19 @@ Includes:
 	   :duds (* w0
 		    (- (* beta (cos (* w0 s)))
 		       (* alpha (sin (* w0 s)))))
-	   :tm (+ t0
-		  (* (/ (+ (scalar (exptg alpha 2)) (scalar (exptg beta 2))) 2) s)
-		  (* (/ (- (scalar (exptg alpha 2)) (scalar (exptg beta 2))) (* 4 w0)) (sin (* 2 w0 s)))
-		  (- (* (/ (scalar (*i alpha beta)) (* 2 w0)) (cos (* 2 w0 s)))))))))))
+	   :tm tm))))))
+#|	   :tm (+ t0
+		  (* (/ (+ (scalar (exptg alpha 2))
+			   (scalar (exptg beta 2)))
+			2)
+		     s)
+		  (* (/ (- (scalar (exptg alpha 2))
+			   (scalar (exptg beta 2)))
+			(* 4 w0))
+		     (sin (* 2 w0 s)))
+		  (- (* (/ (scalar (*i alpha beta))
+			   (* 2 w0))
+			(cos (* 2 w0 s)))))))))))|#
 
 (defmethod to-cartesian (s (x ksstate) &optional sc)
   "Convert KS state to cartesian"
@@ -371,7 +383,8 @@ Includes:
 	 :t0 (- tm
 		(* (/ (+ (scalar (exptg alpha 2)) (scalar (exptg beta 2))) 2) s)
 		(* (/ (- (scalar (exptg alpha 2)) (scalar (exptg beta 2))) (* 4 w0)) (sin (* 2 w0 s)))
-		(- (* (/ (scalar (*i alpha beta)) (* 2 w0)) (cos (* 2 w0 s)))))))))))
+		(- (* (/ (scalar (*i alpha beta)) (* 2 w0)) (cos (* 2 w0 s)))))
+	 :tm tm))))))
 
 (defmethod to-ks (tm (x cartstate) &optional sc)
   "Convert cartesian state to KS"
@@ -380,7 +393,7 @@ Includes:
 (defparameter *sail-2d-ks-kepler-eg*
   (make-instance
    'sail
-   :tf (* 8 pi)
+   :tf (* 4 pi)
    :accfun #'(lambda (s r v sc) (ve2))
    :lightness 0d0
    :x0 (to-ks 0 (slot-value *sail-2d-spin-kepler-eg* 'x0) *sail-2d-spin-kepler-eg*))
@@ -398,7 +411,7 @@ Includes:
 (defparameter *sail-2d-ks-fixed-eg*
   (make-instance
    'sail
-   :tf (* 8 pi)
+   :tf (* 4 pi)
    :pointfun #'sailpointingfixed
    :lightness 0.1d0
    :x0 (to-ks 0 (slot-value *sail-2d-cart-fixed-eg* 'x0) *sail-2d-cart-fixed-eg*)
