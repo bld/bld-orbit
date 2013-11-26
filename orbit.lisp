@@ -547,3 +547,26 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 		   (* (sin truan) (first basis-aop))))))
     (values rv vv)))
 
+;; COE equations of motion
+
+
+(defclass coestate ()
+  ((a :initarg :a :documentation "Semi-major axis")
+   (e :initarg :e :documentation "Eccentricity")
+   (i :initarg :i :documentation "Inclination")
+   (laan :initarg :laan :documentation "Longitude of the ascending node")
+   (aop :initarg :aop :documentation "Argument of periapsis")
+   (tm :initarg :tm :documentation "Time"))
+  (:documentation "Equations of motion for classical orbital element state with true anomaly as independent variable"))
+
+(defstatearithmetic coestate (a e i laan aop tm))
+
+(defmethod to-cartesian 
+
+(defmethod eom (f (x coestate) &optional sc)
+  (with-slots (a e i laan aop tm) x
+    (with-slots (mu accfun) sc
+      
+      (make-instance
+       'coestate
+       :a 
