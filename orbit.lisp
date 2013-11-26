@@ -290,22 +290,21 @@ Includes:
   ((alpha :initarg :alpha :documentation "U at s=0")
    (beta :initarg :beta :documentation "dU/ds / w0 at s=0")
    (e :initarg :e :documentation "Keplerian orbital energy")
-   (t0 :initarg :t0 :documentation "Time at s=0")
    (tm :initarg :tm :documentation "Time"))
   (:documentation "Kustaanheimo-Stiefel orbital element state"))
 
-(let ((slots '(alpha beta e t0)))
+(let ((slots '(alpha beta e tm)))
   (defmethod print-object ((x ksstate) s)
     (format s "#<KSSTATE ~{~a~^ ~}>"
 	    (loop for slot in slots
 	       collect slot
 	       collect (slot-value x slot)))))
 
-(defstatearithmetic ksstate (alpha beta e t0 tm))
+(defstatearithmetic ksstate (alpha beta e tm))
 
 (defmethod eom (s (x ksstate) &optional sc)
   "Kustaanheimo-Stiefel orbit element equations of motion from Arakida and Fukushima"
-  (with-slots (alpha beta e t0 tm) x
+  (with-slots (alpha beta e tm) x
     (with-slots (basis mu accfun x0) sc
       (with-slots ((e0 e)) x0
 	(let* ((hk0 (- e0))
@@ -327,20 +326,11 @@ Includes:
 	   :alpha (- (* ff (/ (sin (* w0 s)) w0)))
 	   :beta (* ff (/ (cos (* w0 s)) w0))
 	   :e (* rm (scalar (*i vv fv)))
-	   :t0 (/ (scalar
-		   (*i ff
-		       (+ (* (- (* alpha (sin (* w0 s)))
-				(* beta (cos (* w0 s))))
-			     s)
-			  (* (/ (* 2 w0))
-			     (+ (* alpha (cos (* w0 s)))
-				(* beta (sin (* w0 s))))))))
-		  w0)
 	   :tm rm))))))
 
 (defmethod to-spinor (s (x ksstate) &optional sc)
   "Convert KS state to spinor state"
-  (with-slots (alpha beta e t0 tm) x
+  (with-slots (alpha beta e tm) x
     (with-slots (mu x0) sc
       (with-slots ((e0 e)) x0
 	(let* ((hk0 (- e0))
@@ -354,18 +344,6 @@ Includes:
 		    (- (* beta (cos (* w0 s)))
 		       (* alpha (sin (* w0 s)))))
 	   :tm tm))))))
-#|	   :tm (+ t0
-		  (* (/ (+ (scalar (exptg alpha 2))
-			   (scalar (exptg beta 2)))
-			2)
-		     s)
-		  (* (/ (- (scalar (exptg alpha 2))
-			   (scalar (exptg beta 2)))
-			(* 4 w0))
-		     (sin (* 2 w0 s)))
-		  (- (* (/ (scalar (*i alpha beta))
-			   (* 2 w0))
-			(cos (* 2 w0 s)))))))))))|#
 
 (defmethod to-cartesian (s (x ksstate) &optional sc)
   "Convert KS state to cartesian"
@@ -380,7 +358,6 @@ Includes:
 	       (w0 (sqrt (/ hk0 2)))
 	       (e (energy x sc))
 	       (hk (- e))
-	       ;;(w0 (sqrt (/ hk 2)))
 	       (alpha (- (* u (cos (* w0 s)))
 			 (* (/ duds w0) (sin (* w0 s)))))
 	       (beta (+ (* u (sin (* w0 s)))
@@ -392,10 +369,6 @@ Includes:
 	    :alpha alpha
 	    :beta beta
 	    :e e
-	    :t0 (- tm
-		   (* (/ (+ (scalar (exptg alpha 2)) (scalar (exptg beta 2))) 2) s)
-		   (* (/ (- (scalar (exptg alpha 2)) (scalar (exptg beta 2))) (* 4 w0)) (sin (* 2 w0 s)))
-		   (- (* (/ (scalar (*i alpha beta)) (* 2 w0)) (cos (* 2 w0 s)))))
 	    :tm tm)))))))
 
 (defmethod to-ks (tm (x cartstate) &optional sc)
@@ -555,14 +528,14 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
   ((a :initarg :a :documentation "Semi-major axis")
    (e :initarg :e :documentation "Eccentricity")
    (i :initarg :i :documentation "Inclination")
-   (laan :initarg :laan :documentation "Longitude of the ascending node")
+   (lan :initarg :lan :documentation "Longitude of the ascending node")
    (aop :initarg :aop :documentation "Argument of periapsis")
    (tm :initarg :tm :documentation "Time"))
   (:documentation "Equations of motion for classical orbital element state with true anomaly as independent variable"))
 
-(defstatearithmetic coestate (a e i laan aop tm))
+(defstatearithmetic coestate (a e i lan aop tm))
 
-(let ((slots '(a e i laan aop tm)))
+(let ((slots '(a e i lan aop tm)))
   (defmethod print-object ((x coestate) stream)
     (format stream "#<COESTATE ~{~a~^ ~}>"
 	    (loop for slot in slots
@@ -570,9 +543,9 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	       collect (slot-value x slot)))))
 
 (defmethod to-cartesian (f (x coestate) &optional sc)
-  (with-slots (a e i laan aop tm) x
+  (with-slots (a e i lan aop tm) x
     (with-slots (mu basis) sc
-      (multiple-value-bind (r v) (coe2rv a e i laan aop f mu basis)
+      (multiple-value-bind (r v) (coe2rv a e i lan aop f mu basis)
 	(values
 	 tm
 	 (make-instance
@@ -594,15 +567,15 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	  :a (sma-rv (norme r) (norme v) mu)
 	  :e (norme eccv)
 	  :i (inc-rv mombv basis)
-	  :laan (raan-rv nodev basis)
+	  :lan (raan-rv nodev basis)
 	  :aop (aop-rv nodev eccv mombv)
 	  :tm tm))))))
 
 (defmethod eom (f (x coestate) &optional sc)
   "Classical orbital element equations of motion. Watch for singularities."
-  (with-slots (a e i laan aop tm) x
+  (with-slots (a e i lan aop tm) x
     (with-slots (mu accfun basis) sc
-      (multiple-value-bind (r v) (coe2rv a e i laan aop f mu basis) ; position & velocity
+      (multiple-value-bind (r v) (coe2rv a e i lan aop f mu basis) ; position & velocity
 	(let* ((rm (norme r)) ; radius
 	       (p (* a (- 1 (expt e 2)))) ; semi latus rectum
 	       (fv (funcall accfun f r v sc)) ; force vector
@@ -610,7 +583,7 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	       (sf (scalar (*i fv (first obasis)))) ; radial force
 	       (tf (scalar (*i fv (second obasis)))) ; transverse force
 	       (wf (scalar (*i fv (third obasis)))) ; orbit normal force
-	       (dlaan (* (/ (expt rm 3) mu p (sin i)) ; derivative of longitude of ascending node
+	       (dlan (* (/ (expt rm 3) mu p (sin i)) ; derivative of longitude of ascending node
 			 (sin (+ f aop))
 			 wf)))
 	(make-instance
@@ -625,11 +598,11 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	 :i (* (/ (expt rm 3) mu p)
 	       (cos (+ f aop))
 	       wf)
-	 :laan dlaan
+	 :lan dlan
 	 :aop (- (* (/ (expt rm 2) mu e)
 		    (- (* tf (+ 1 (/ rm p)) (sin f))
 		       (* sf (cos f))))
-		 (* dlaan (cos i)))
+		 (* dlan (cos i)))
 	 :tm (* (/ (expt rm 2) (sqrt (* mu p)))
 		(- 1
 		   (* (/ (expt rm 2) mu e)
@@ -649,7 +622,7 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	:a 1.1
 	:e 0.1
 	:i 0.1
-	:laan 0.1
+	:lan 0.1
 	:aop 0.1
 	:tm 0)
    :basis (list (ve3 :e1 1) (ve3 :e2 1) (ve3 :e3 1))
