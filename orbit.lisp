@@ -124,7 +124,7 @@ Includes:
 (defmethod propagate ((sc sail))
   "Propagate sailcraft trajectory"
   (with-slots (eom t0 tf x0) sc
-    (rka eom t0 tf x0 :param sc :hmax (/ (- tf t0) 10))))
+    (rka eom t0 tf x0 :param sc :hmax (- tf t0))))
 
 ;; Cartesian state
 
