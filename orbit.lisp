@@ -124,7 +124,7 @@ Includes:
 (defmethod propagate ((sc sail))
   "Propagate sailcraft trajectory"
   (with-slots (eom t0 tf x0) sc
-    (rka eom t0 tf x0 :param sc :hmax (- tf t0))))
+    (rka eom t0 tf x0 :param sc :hmax (/ (- tf t0) 10))))
 
 ;; Cartesian state
 
@@ -141,7 +141,7 @@ Includes:
 (defmethod energy ((x cartstate) sc)
   (with-slots (mu) sc
     (with-slots (r v) x
-      (- (/ (scalar (exptg v 2)) 2) (/ mu (norme2 r))))))
+      (- (/ (scalar (exptg v 2)) 2) (/ mu (norme r))))))
 
 (defmethod eom (tm (x cartstate) &optional sc)
   "Solar sail cartesian equations of motion"
@@ -163,7 +163,7 @@ Includes:
    :x0 (make-instance
 	'cartstate
 	:r (ve2 :e1 1)
-	:v (ve2 :e2 1))))
+	:v (ve2 :e2 1.1))))
 
 (defparameter *sail-2d-cart-normal-eg*
   (make-instance
@@ -332,22 +332,25 @@ Includes:
   "Convert KS state to spinor state"
   (with-slots (alpha beta e tm) x
     (with-slots (mu x0) sc
-      (with-slots ((e0 e)) x0
-	(let* ((hk0 (- e0))
-	       (w0 (sqrt (/ hk0 2)))
-	       (hk (- e)))
-	  (make-instance
-	   'spinorstate
-	   :u (+ (* alpha (cos (* w0 s)))
-		 (* beta (sin (* w0 s))))
-	   :duds (* w0
-		    (- (* beta (cos (* w0 s)))
-		       (* alpha (sin (* w0 s)))))
-	   :tm tm))))))
+      (let* ((e0 (energy x0 sc))
+	     (hk0 (- e0))
+	     (w0 (sqrt (/ hk0 2)))
+	     (hk (- e)))
+	(make-instance
+	 'spinorstate
+	 :u (+ (* alpha (cos (* w0 s)))
+	       (* beta (sin (* w0 s))))
+	 :duds (* w0
+		  (- (* beta (cos (* w0 s)))
+		     (* alpha (sin (* w0 s)))))
+	 :tm tm)))))
 
 (defmethod to-cartesian (s (x ksstate) &optional sc)
   "Convert KS state to cartesian"
   (to-cartesian s (to-spinor s x sc) sc))
+
+(defmethod energy ((x ksstate) sc)
+  (slot-value x 'e))
 
 (defmethod to-ks (s (x spinorstate) &optional sc)
   "Convert spinor state to KS"
@@ -362,14 +365,12 @@ Includes:
 			 (* (/ duds w0) (sin (* w0 s)))))
 	       (beta (+ (* u (sin (* w0 s)))
 			(* (/ duds w0) (cos (* w0 s))))))
-	  (values
-	   s
-	   (make-instance
-	    'ksstate
-	    :alpha alpha
-	    :beta beta
-	    :e e
-	    :tm tm)))))))
+	  (make-instance
+	   'ksstate
+	   :alpha alpha
+	   :beta beta
+	   :e e
+	   :tm tm))))))
 
 (defmethod to-ks (tm (x cartstate) &optional sc)
   "Convert cartesian state to KS"
@@ -567,9 +568,14 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	  :a (sma-rv (norme r) (norme v) mu)
 	  :e (norme eccv)
 	  :i (inc-rv mombv basis)
-	  :lan (raan-rv nodev basis)
+	  :lan (lan-rv nodev basis)
 	  :aop (aop-rv nodev eccv mombv)
 	  :tm tm))))))
+
+(defmethod energy ((x coestate) sc)
+  (with-slots (a) x
+    (with-slots (mu) sc
+      (- (/ mu 2 a)))))
 
 (defmethod eom (f (x coestate) &optional sc)
   "Classical orbital element equations of motion. Watch for singularities."
@@ -643,7 +649,7 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 
 (defparameter *sail-3d-spin-kepler-eg*
   (let ((sc *sail-3d-cart-kepler-eg*))
-    (with-slots (t0 x0 basis rs) sc
+    (with-slots (x0 basis rs) sc
       (make-instance
        'sail
        :t0 0
@@ -656,14 +662,13 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 
 (defparameter *sail-3d-ks-kepler-eg*
   (let ((sc *sail-3d-cart-kepler-eg*))
-    (with-slots (t0 x0 basis rs) sc
+    (with-slots (x0 basis rs) sc
       (make-instance
        'sail
        :t0 0
        :tf (* 4 pi)
        :accfun #'(lambda (s r v sc) (ve3))
        :lightness 0d0
-       :x0 (second (multiple-value-list (to-ks 0 x0 sc)))
+       :x0 (to-ks 0 x0 sc)
        :basis basis
        :rs rs))))
-
