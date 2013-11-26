@@ -124,7 +124,7 @@ Includes:
 (defmethod propagate ((sc sail))
   "Propagate sailcraft trajectory"
   (with-slots (eom t0 tf x0) sc
-    (rka eom t0 tf x0 :param sc :hmax (/ (- tf t0) 10))))
+    (rka eom t0 tf x0 :param sc :hmax (- tf t0))))
 
 ;; Cartesian state
 
@@ -154,7 +154,7 @@ Includes:
 	     (gravity tm r mu))))))
 
 (defmethod to-cartesian (tm (x cartstate) &optional sc)
-  (values x tm))
+  (values tm x))
 
 (defparameter *sail-2d-cart-kepler-eg*
   (make-instance 
@@ -177,7 +177,7 @@ Includes:
    'sail
    :tf (* 4 pi)
    :lightness 0.1
-   :rs (rotor (bve2 :e1e2 1) (* 35.5 (/ pi 180)))))
+   :rs (rotor (bve2 :e1e2 1) (atan (/ (sqrt 2))))))
 
 (defparameter *sail-2d-cart-table-eg*
   (make-instance
@@ -186,7 +186,7 @@ Includes:
    :tf (* 4 pi)
    :pointfun #'sailpointingtable
    :rs (list (list (* 2 pi) (rotor (bve2 :e1e2 1) (/ pi 2)))
-	     (list (* 4 pi) (rotor (bve2 :e1e2 1) (/ pi 2 3))))))
+	     (list (* 4 pi) (rotor (bve2 :e1e2 1) (atan (/ (sqrt 2))))))))
 
 ;; Spinor states
 
@@ -273,6 +273,16 @@ Includes:
    :x0 (to-spinor 0 (slot-value *sail-2d-cart-fixed-eg* 'x0) *sail-2d-cart-fixed-eg*)
    :rs (slot-value *sail-2d-cart-fixed-eg* 'rs))
   "Two-dimensional spinor EOM with fixed pointing sail example")
+
+(defparameter *sail-2d-spin-table-eg*
+  (make-instance
+   'sail
+   :tf (* 4 pi)
+   :pointfun #'sailpointingtable
+   :lightness 0.1d0
+   :x0 (to-spinor 0 (slot-value *sail-2d-cart-fixed-eg* 'x0) *sail-2d-cart-fixed-eg*)
+   :rs (slot-value *sail-2d-cart-table-eg* 'rs))
+  "Two-dimensional spinor EOM with lookup table pointing sail example")
 
 ;; Kustaanheimo-Stiefel Orbit Element equations of motion
 
@@ -416,6 +426,16 @@ Includes:
    :lightness 0.1d0
    :x0 (to-ks 0 (slot-value *sail-2d-cart-fixed-eg* 'x0) *sail-2d-cart-fixed-eg*)
    :rs (slot-value *sail-2d-cart-fixed-eg* 'rs))
+  "Two-dimensional Kustaanheimo-Stiefel EOM with fixed pointing sail example")
+
+(defparameter *sail-2d-ks-table-eg*
+  (make-instance
+   'sail
+   :tf (* 4 pi)
+   :pointfun #'sailpointingtable
+   :lightness 0.1d0
+   :x0 (to-ks 0 (slot-value *sail-2d-cart-fixed-eg* 'x0) *sail-2d-cart-fixed-eg*)
+   :rs (slot-value *sail-2d-cart-table-eg* 'rs))
   "Two-dimensional Kustaanheimo-Stiefel EOM with fixed pointing sail example")
 
 ;; Export functions
