@@ -641,6 +641,19 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
        :basis basis
        :rs rs))))
 
+(defparameter *sail-3d-spin-kepler-eg*
+  (let ((sc *sail-3d-cart-kepler-eg*))
+    (with-slots (t0 x0 basis rs) sc
+      (make-instance
+       'sail
+       :t0 0
+       :tf (* 4 pi)
+       :accfun #'(lambda (s r v sc) (ve3))
+       :lightness 0d0
+       :x0 (to-spinor 0 x0 sc)
+       :basis basis
+       :rs rs))))
+
 (defparameter *sail-3d-ks-kepler-eg*
   (let ((sc *sail-3d-cart-kepler-eg*))
     (with-slots (t0 x0 basis rs) sc
@@ -650,6 +663,7 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
        :tf (* 4 pi)
        :accfun #'(lambda (s r v sc) (ve3))
        :lightness 0d0
-       :x0 (second (multiple-value-list (to-ks t0 x0 sc)))
+       :x0 (second (multiple-value-list (to-ks 0 x0 sc)))
        :basis basis
        :rs rs))))
+
