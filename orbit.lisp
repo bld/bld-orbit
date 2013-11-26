@@ -163,7 +163,7 @@ Includes:
    :x0 (make-instance
 	'cartstate
 	:r (ve2 :e1 1)
-	:v (ve2 :e2 1.1))))
+	:v (ve2 :e2 1))))
 
 (defparameter *sail-2d-cart-normal-eg*
   (make-instance
@@ -385,16 +385,18 @@ Includes:
 			 (* (/ duds w0) (sin (* w0 s)))))
 	       (beta (+ (* u (sin (* w0 s)))
 			(* (/ duds w0) (cos (* w0 s))))))
-	(make-instance
-	 'ksstate
-	 :alpha alpha
-	 :beta beta
-	 :e e
-	 :t0 (- tm
-		(* (/ (+ (scalar (exptg alpha 2)) (scalar (exptg beta 2))) 2) s)
-		(* (/ (- (scalar (exptg alpha 2)) (scalar (exptg beta 2))) (* 4 w0)) (sin (* 2 w0 s)))
-		(- (* (/ (scalar (*i alpha beta)) (* 2 w0)) (cos (* 2 w0 s)))))
-	 :tm tm))))))
+	  (values
+	   s
+	   (make-instance
+	    'ksstate
+	    :alpha alpha
+	    :beta beta
+	    :e e
+	    :t0 (- tm
+		   (* (/ (+ (scalar (exptg alpha 2)) (scalar (exptg beta 2))) 2) s)
+		   (* (/ (- (scalar (exptg alpha 2)) (scalar (exptg beta 2))) (* 4 w0)) (sin (* 2 w0 s)))
+		   (- (* (/ (scalar (*i alpha beta)) (* 2 w0)) (cos (* 2 w0 s)))))
+	    :tm tm)))))))
 
 (defmethod to-ks (tm (x cartstate) &optional sc)
   "Convert cartesian state to KS"
@@ -578,7 +580,7 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	  :r r
 	  :v v))))))
 
-(defmethod to-coestate (tm (x cartstate) &optional sc)
+(defmethod to-coe (tm (x cartstate) &optional sc)
   "Convert cartesian to classical orbital element state"
   (with-slots (r v) x
     (with-slots (mu basis) sc
@@ -634,11 +636,13 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 		      (- (* sf (cos f))
 			 (* tf (+ 1 (/ rm p)) (sin f))))))))))))
 
+;;; 3D examples
+
 (defparameter *sail-3d-coe-kepler-eg*
   (make-instance
    'sail
    :tf (* 4 pi)
-   :accfun #'(lambda (s r v sc) (ve2))
+   :accfun #'(lambda (s r v sc) (ve3))
    :lightness 0d0
    :x0 (make-instance
 	'coestate
@@ -650,3 +654,29 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	:tm 0)
    :basis (list (ve3 :e1 1) (ve3 :e2 1) (ve3 :e3 1))
    :rs (re3 :s 1)))
+
+(defparameter *sail-3d-cart-kepler-eg*
+  (let ((sc *sail-3d-coe-kepler-eg*))
+    (with-slots (t0 x0 basis rs) sc
+      (make-instance
+       'sail
+       :t0 0
+       :tf (* 4 pi)
+       :accfun #'(lambda (s r v sc) (ve3))
+       :lightness 0d0
+       :x0 (second (multiple-value-list (to-cartesian t0 x0 sc)))
+       :basis basis
+       :rs rs))))
+
+(defparameter *sail-3d-ks-kepler-eg*
+  (let ((sc *sail-3d-cart-kepler-eg*))
+    (with-slots (t0 x0 basis rs) sc
+      (make-instance
+       'sail
+       :t0 0
+       :tf (* 4 pi)
+       :accfun #'(lambda (s r v sc) (ve3))
+       :lightness 0d0
+       :x0 (second (multiple-value-list (to-ks t0 x0 sc)))
+       :basis basis
+       :rs rs))))
