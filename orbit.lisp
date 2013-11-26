@@ -549,7 +549,6 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 
 ;; COE equations of motion
 
-
 (defclass coestate ()
   ((a :initarg :a :documentation "Semi-major axis")
    (e :initarg :e :documentation "Eccentricity")
@@ -561,12 +560,93 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 
 (defstatearithmetic coestate (a e i laan aop tm))
 
-(defmethod to-cartesian 
+(let ((slots '(a e i laan aop tm)))
+  (defmethod print-object ((x coestate) stream)
+    (format stream "#<COESTATE ~{~a~^ ~}>"
+	    (loop for slot in slots
+	       collect slot
+	       collect (slot-value x slot)))))
+
+(defmethod to-cartesian (f (x coestate) &optional sc)
+  (with-slots (a e i laan aop tm) x
+    (with-slots (mu basis) sc
+      (multiple-value-bind (r v) (coe2rv a e i laan aop f mu basis)
+	(values
+	 tm
+	 (make-instance
+	  'cartstate
+	  :r r
+	  :v v))))))
+
+(defmethod to-coestate (tm (x cartstate) &optional sc)
+  "Convert cartesian to classical orbital element state"
+  (with-slots (r v) x
+    (with-slots (mu basis) sc
+      (let* ((mombv (mombv-rv r v))
+	     (nodev (nodev-rv mombv basis))
+	     (eccv (eccv-rv r v mu)))
+	(values
+	 (truan-rv eccv r mombv)
+	 (make-instance
+	  'coestate
+	  :a (sma-rv (norme r) (norme v) mu)
+	  :e (norme eccv)
+	  :i (inc-rv mombv basis)
+	  :laan (raan-rv nodev basis)
+	  :aop (aop-rv nodev eccv mombv)
+	  :tm tm))))))
 
 (defmethod eom (f (x coestate) &optional sc)
+  "Classical orbital element equations of motion. Watch for singularities."
   (with-slots (a e i laan aop tm) x
-    (with-slots (mu accfun) sc
-      
-      (make-instance
-       'coestate
-       :a 
+    (with-slots (mu accfun basis) sc
+      (multiple-value-bind (r v) (coe2rv a e i laan aop f mu basis) ; position & velocity
+	(let* ((rm (norme r)) ; radius
+	       (p (* a (- 1 (expt e 2)))) ; semi latus rectum
+	       (fv (funcall accfun f r v sc)) ; force vector
+	       (obasis (rvbasis r v)) ; orbit basis from position/velocity
+	       (sf (scalar (*i fv (first obasis)))) ; radial force
+	       (tf (scalar (*i fv (second obasis)))) ; transverse force
+	       (wf (scalar (*i fv (third obasis)))) ; orbit normal force
+	       (dlaan (* (/ (expt rm 3) mu p (sin i)) ; derivative of longitude of ascending node
+			 (sin (+ f aop))
+			 wf)))
+	(make-instance
+	 'coestate
+	 :a (* (/ (* 2 p (expt rm 2))
+		  mu (expt (- 1 (expt e 2)) 2))
+	       (+ (* sf e (sin f)) (/ (* tf p) rm)))
+	 :e (* (/ (expt rm 2) mu)
+	       (+ (* sf (sin f))
+		  (* tf (+ 1 (/ rm p)) (cos f))
+		  (* tf (/ rm p) e)))
+	 :i (* (/ (expt rm 3) mu p)
+	       (cos (+ f aop))
+	       wf)
+	 :laan dlaan
+	 :aop (- (* (/ (expt rm 2) mu e)
+		    (- (* tf (+ 1 (/ rm p)) (sin f))
+		       (* sf (cos f))))
+		 (* dlaan (cos i)))
+	 :tm (* (/ (expt rm 2) (sqrt (* mu p)))
+		(- 1
+		   (* (/ (expt rm 2) mu e)
+		      (- (* sf (cos f))
+			 (* tf (+ 1 (/ rm p)) (sin f))))))))))))
+
+(defparameter *sail-3d-coe-kepler-eg*
+  (make-instance
+   'sail
+   :tf (* 4 pi)
+   :accfun #'(lambda (s r v sc) (ve2))
+   :lightness 0d0
+   :x0 (make-instance
+	'coestate
+	:a 1.1
+	:e 0.1
+	:i 0.1
+	:laan 0.1
+	:aop 0.1
+	:tm 0)
+   :basis (list (ve3 :e1 1) (ve3 :e2 1) (ve3 :e3 1))
+   :rs (re3 :s 1)))
