@@ -23,9 +23,17 @@ Includes:
 
 (defparameter *musun* 1.32712440018d20 "Solar gravitational parameter, m^3/s^2")
 
+;;; Utility functions
+
 (defun new-frame (rotor frame)
   "New reference frame from rotor & original frame"
   (mapcar #'(lambda (basisvector) (rotateg basisvector rotor)) frame))
+
+(defun make-vector (coefs basis)
+  (apply #'+
+	 (loop for coef in coefs
+	    for bv in basis
+	    collect (* coef bv))))
 
 ;; Define infinity norm method for BLD-ODE Runge-Kutta method on geometric algebra objects
 (defmethod norminfx ((x g))
@@ -233,7 +241,7 @@ Includes:
 	 (make-instance
 	  'cartstate
 	  :r (spin (first basis) u)
-	  :v (* 2 (*g3 dudt (first basis) (revg u)))))))))
+	  :v (graden (* 2 (*g3 dudt (first basis) (revg u))) 1)))))))
 
 (defmethod to-spinor (tm (x cartstate) &optional sc)
   "Convert cartesian state to spinor given time and X"
@@ -615,7 +623,106 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 		      (- (* sf (cos f))
 			 (* tf (+ 1 (/ rm p)) (sin f))))))))))))
 
+;;; Modified equinoctial orbital elements
+
+(defclass meestate ()
+  ((p :initarg :p :documentation "Semi latus rectum")
+   (f :initarg :f :documentation "e cos (AOP + LAN)")
+   (g :initarg :g :documentation "e sin (AOP + LAN)")
+   (h :initarg :h :documentation "tan (i/2) cos (LAN)")
+   (k :initarg :k :documentation "tan (i/2) sin (LAN)")
+   (l :initarg :l :documentation "True longitude: AOP + LAN + true anomaly"))
+  (:documentation "Equinoctial orbital element state"))
+
+(defstatearithmetic meestate (p f g h k l))
+
+(let ((slots '(p f g h k l)))
+  (defmethod print-object ((x meestate) s)
+    (format s "#<MEESTATE ~{~a~^ ,~}"
+	    (loop for slot in slots
+	       collect slot
+	       collect (slot-value x slot)))))
+
+(defmethod to-mee (truan (x coestate) &optional sc)
+  (with-slots (a e i lan aop lan) x
+    (make-instance
+     'meestate
+     :p (* a (- 1 (expt e 2)))
+     :f (* e (cos (+ aop lan)))
+     :g (* e (sin (+ aop lan)))
+     :h (* (tan (/ i 2)) (cos lan))
+     :k (* (tan (/ i 2)) (sin lan))
+     :l (+ lan aop truan))))
+
+(defmethod to-cartesian (tm (x meestate) &optional sc)
+  (with-slots (p f g h k l) x
+    (with-slots (mu basis) sc
+      (let* ((alpha2 (- (expt h 2) (expt k 2)))
+	     (s2 (+ 1 (expt h 2) (expt k 2)))
+	     (w (+ 1 (* f (cos l)) (* g (sin l))))
+	     (r (/ p w)))
+	(values
+	 tm
+	 (make-instance
+	  'cartstate
+	  :r (make-vector
+	      (list
+	       (* (/ r s2)
+		  (+ (cos l) (* alpha2 (cos l)) (* 2 h k (sin l))))
+	       (* (/ r s2)
+		  (+ (sin l) (- (* alpha2 (sin l))) (* 2 h k (cos l))))
+	       (* (/ (* 2 r) s2)
+		  (- (* h (sin l)) (* k (cos l)))))
+	      basis)
+	  :v (make-vector
+	      (list
+	       (* (/ -1 s2)
+		  (sqrt (/ mu p))
+		  (+ (sin l)
+		     (* alpha2 (sin l))
+		     (* -2 h k (cos l))
+		     g
+		     (* -2 f h k)
+		     (* alpha2 g)))
+	       (* (/ -1 s2)
+		  (sqrt (/ mu p))
+		  (+ (- (cos l))
+		     (* alpha2 (cos l))
+		     (* 2 h k (sin l))
+		     (- f)
+		     (* 2 g h k)
+		     (* alpha2 f)))
+	       (* (/ 2 s2)
+		  (sqrt (/ mu p))
+		  (+ (* h (cos l))
+		     (* k (sin l))
+		     (* f h)
+		     (* g k))))
+	      basis)))))))
+
+(defmethod to-coe (tm (x meestate) &optional sc)
+  (with-slots (p f g h k l) x
+    (values
+     (- l lan aop)
+     (make-instance
+      'coestate
+      :a (/ p (- 1 (expt f 2) (expt g 2)))
+      :e (sqrt (+ (expt f 2) (expt g 2)))
+      :i (atan (* 2 (sqrt (+ (expt h 2) (expt k 2))))
+	       (- 1 (expt h 2) (expt k 2)))
+      :aop (atan (- (* g h) (* f k))
+		 (+ (* f h) (* g k)))
+      :lan (atan k h)))))
+
+#|
+(defmethod eom (tm (x meestate) sc)
+  (with-slots (p f g h k l) x
+    (with-slots (
+|#
+
 ;;; 3D examples
+
+;; 3D Kepler examples
 
 (defparameter *sail-3d-coe-kepler-eg*
   (make-instance
@@ -672,3 +779,57 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
        :x0 (to-ks 0 x0 sc)
        :basis basis
        :rs rs))))
+
+;; 3D sail normal examples
+
+(defparameter *sail-3d-coe-normal-eg*
+  (make-instance
+   'sail
+   :tf (* 4 pi)
+   :pointfun #'sailpointingnormal
+   :lightness 0.1d0
+   :x0 (make-instance
+	'coestate
+	:a 1.1
+	:e 0.1
+	:i 0.1
+	:lan 0.1
+	:aop 0.1
+	:tm 0)
+   :basis (list (ve3 :e1 1) (ve3 :e2 1) (ve3 :e3 1))))
+
+(defparameter *sail-3d-cart-normal-eg*
+  (let ((sc *sail-3d-coe-normal-eg*))
+    (with-slots (t0 x0 basis lightness) sc
+      (make-instance
+       'sail
+       :t0 0
+       :tf (* 4 pi)
+       :pointfun #'sailpointingnormal
+       :lightness lightness
+       :x0 (second (multiple-value-list (to-cartesian t0 x0 sc)))
+       :basis basis))))
+
+(defparameter *sail-3d-spin-normal-eg*
+  (let ((sc *sail-3d-cart-normal-eg*))
+    (with-slots (t0 x0 basis lightness) sc
+      (make-instance
+       'sail
+       :t0 0
+       :tf (* 4 pi)
+       :pointfun #'sailpointingnormal
+       :lightness lightness
+       :x0 (to-spinor 0 x0 sc)
+       :basis basis))))
+
+(defparameter *sail-3d-ks-normal-eg*
+  (let ((sc *sail-3d-cart-normal-eg*))
+    (with-slots (t0 x0 basis lightness) sc
+      (make-instance
+       'sail
+       :t0 0
+       :tf (* 4 pi)
+       :pointfun #'sailpointingnormal
+       :lightness lightness
+       :x0 (to-ks 0 x0 sc)
+       :basis basis))))
