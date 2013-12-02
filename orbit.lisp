@@ -43,11 +43,11 @@ Includes:
 
 (defgeneric eom (s x &optional param) (:documentation "Equations of motion given independent variable S & state X"))
 
-(defgeneric to-cartesian (s x &optional sc) (:documentation "Convert a state to cartesian state"))
+(defgeneric to-cartesian (x s &optional sc) (:documentation "Convert a state to cartesian state"))
 
-(defgeneric to-spinor (s x &optional sc) (:documentation "Convert a state to spinor state"))
+(defgeneric to-spinor (x s &optional sc) (:documentation "Convert a state to spinor state"))
 
-(defgeneric to-ks (s x &optional sc) (:documentation "Convert to a Kustaanheimo-Stiefel orbit element state"))
+(defgeneric to-ks (x s &optional sc) (:documentation "Convert to a Kustaanheimo-Stiefel orbit element state"))
 
 ;; Rotor, spinor and basis functions
 
@@ -61,7 +61,7 @@ Includes:
   "Recover a spinor given orbit radius, new basis vectors, and original basis vectors"
   (* (recoverrotor3d fs es) (sqrt r)))
 
-(defun rvbasis (rv vv)
+#|(defun rvbasis (rv vv)
   "Return a set of basis vectors derived from position and velocity"
   (let* ((mombv (*o rv vv))
 	 (x (unitg rv))
@@ -70,7 +70,18 @@ Includes:
 	      (*x2 x y))))
     (if (= 2 (dimension rv) (dimension vv)) ; 2D or 3D?
 	(list x y)
-	(list x y z))))
+	(list x y z))))|#
+
+(defun rvbasis (r v)
+  "Form a basis from the position and velocity vectors. First is the unit position vector. Second is the complement of the first in the orbit plane. Third (if it exists) is the orbit plane normal vector."
+  (let* ((h (unitg (*o r v)))
+	 (x (unitg r))
+	 (y (*i r h)))
+    (cond
+      ((= (dimension r) (dimension v) 2) (list x y))
+      ((= (dimension r) (dimension v) 3)
+       (list x y (dual h)))
+      (t (error "R and V must be 2 or 3 dimensional")))))
 
 ;; Acceleration functions
 
@@ -94,6 +105,7 @@ Includes:
     (let* ((rvbasis (rvbasis r v))
 	   (rrv (recoverrotor3d rvbasis basis)))
       (rotateg (first basis) (*g rrv rs)))))
+
 
 (defun sailpointingnormal (s r v sc)
   "Sail normal to sunlight"
@@ -161,8 +173,8 @@ Includes:
        :v (+ (funcall accfun tm r v sc)
 	     (gravity tm r mu))))))
 
-(defmethod to-cartesian (tm (x cartstate) &optional sc)
-  (values tm x))
+(defmethod to-cartesian ((x cartstate) tm &optional sc)
+  (values x tm))
 
 (defparameter *sail-2d-cart-kepler-eg*
   (make-instance 
@@ -230,29 +242,31 @@ Includes:
        :duds (/ (+ (*g3 f r u) (* e u)) 2)
        :tm (norme2 u))))))
 
-(defmethod to-cartesian (s (x spinorstate) &optional sc)
+(defmethod to-cartesian ((x spinorstate) s &optional sc)
   "Convert spinor state to cartesian coordinates given S and X"
   (with-slots (u duds tm) x
     (with-slots (basis) sc
       (let* ((r (norme2 u))
 	     (dudt (/ duds r)))
 	(values
-	 tm
 	 (make-instance
 	  'cartstate
 	  :r (spin (first basis) u)
-	  :v (graden (* 2 (*g3 dudt (first basis) (revg u))) 1)))))))
+	  :v (graden (* 2 (*g3 dudt (first basis) (revg u))) 1))
+	 tm)))))
 
-(defmethod to-spinor (tm (x cartstate) &optional sc)
+(defmethod to-spinor ((x cartstate) tm &optional sc)
   "Convert cartesian state to spinor given time and X"
   (with-slots (r v) x
     (with-slots (basis) sc
       (let ((u (recoverspinor3d (norme r) (rvbasis r v) basis)))
-	(make-instance
-	 'spinorstate
-	 :u u
-	 :duds (* 0.5d0 (*g3 v u (first basis)))
-	 :tm tm)))))
+	(values
+	 (make-instance
+	  'spinorstate
+	  :u u
+	  :duds (* 0.5d0 (*g3 v u (first basis)))
+	  :tm tm)
+	 0)))))
 
 (defparameter *sail-2d-spin-kepler-eg*
   (make-instance
@@ -260,7 +274,7 @@ Includes:
    :tf (* 4 pi)
    :accfun #'(lambda (s r v sc) (ve2))
    :lightness 0.0d0
-   :x0 (to-spinor 0 (slot-value *sail-2d-cart-kepler-eg* 'x0) *sail-2d-cart-kepler-eg*)))
+   :x0 (to-spinor (slot-value *sail-2d-cart-kepler-eg* 'x0) 0 *sail-2d-cart-kepler-eg*)))
 
 (defparameter *sail-2d-spin-normal-eg*
   (make-instance
@@ -268,9 +282,10 @@ Includes:
    :tf (* 4 pi)
    :pointfun #'sailpointingnormal
    :lightness 0.1d0
-   :x0 (to-spinor 0 
-		  (slot-value *sail-2d-cart-normal-eg* 'x0)
-		  *sail-2d-cart-normal-eg*)))
+   :x0 (to-spinor
+	(slot-value *sail-2d-cart-normal-eg* 'x0)
+	0
+	*sail-2d-cart-normal-eg*)))
 
 (defparameter *sail-2d-spin-fixed-eg*
   (make-instance
@@ -278,7 +293,7 @@ Includes:
    :tf (* 4 pi)
    :pointfun #'sailpointingfixed
    :lightness 0.1d0
-   :x0 (to-spinor 0 (slot-value *sail-2d-cart-fixed-eg* 'x0) *sail-2d-cart-fixed-eg*)
+   :x0 (to-spinor (slot-value *sail-2d-cart-fixed-eg* 'x0) 0 *sail-2d-cart-fixed-eg*)
    :rs (slot-value *sail-2d-cart-fixed-eg* 'rs))
   "Two-dimensional spinor EOM with fixed pointing sail example")
 
@@ -288,7 +303,7 @@ Includes:
    :tf (* 4 pi)
    :pointfun #'sailpointingtable
    :lightness 0.1d0
-   :x0 (to-spinor 0 (slot-value *sail-2d-cart-fixed-eg* 'x0) *sail-2d-cart-fixed-eg*)
+   :x0 (to-spinor (slot-value *sail-2d-cart-fixed-eg* 'x0) 0 *sail-2d-cart-fixed-eg*)
    :rs (slot-value *sail-2d-cart-table-eg* 'rs))
   "Two-dimensional spinor EOM with lookup table pointing sail example")
 
@@ -336,7 +351,7 @@ Includes:
 	   :e (* rm (scalar (*i vv fv)))
 	   :tm rm))))))
 
-(defmethod to-spinor (s (x ksstate) &optional sc)
+(defmethod to-spinor ((x ksstate) s &optional sc)
   "Convert KS state to spinor state"
   (with-slots (alpha beta e tm) x
     (with-slots (mu x0) sc
@@ -344,23 +359,25 @@ Includes:
 	     (hk0 (- e0))
 	     (w0 (sqrt (/ hk0 2)))
 	     (hk (- e)))
-	(make-instance
-	 'spinorstate
-	 :u (+ (* alpha (cos (* w0 s)))
-	       (* beta (sin (* w0 s))))
-	 :duds (* w0
-		  (- (* beta (cos (* w0 s)))
-		     (* alpha (sin (* w0 s)))))
-	 :tm tm)))))
+	(values
+	 (make-instance
+	  'spinorstate
+	  :u (+ (* alpha (cos (* w0 s)))
+		(* beta (sin (* w0 s))))
+	  :duds (* w0
+		   (- (* beta (cos (* w0 s)))
+		      (* alpha (sin (* w0 s)))))
+	  :tm tm)
+	 s)))))
 
-(defmethod to-cartesian (s (x ksstate) &optional sc)
+(defmethod to-cartesian ((x ksstate) s &optional sc)
   "Convert KS state to cartesian"
-  (to-cartesian s (to-spinor s x sc) sc))
+  (to-cartesian (to-spinor x s sc) s sc))
 
 (defmethod energy ((x ksstate) sc)
   (slot-value x 'e))
 
-(defmethod to-ks (s (x spinorstate) &optional sc)
+(defmethod to-ks ((x spinorstate) s &optional sc)
   "Convert spinor state to KS"
   (with-slots (u duds tm) x
     (with-slots (mu x0) sc
@@ -380,9 +397,9 @@ Includes:
 	   :e e
 	   :tm tm))))))
 
-(defmethod to-ks (tm (x cartstate) &optional sc)
+(defmethod to-ks ((x cartstate) tm &optional sc)
   "Convert cartesian state to KS"
-  (to-ks 0 (to-spinor 0 x sc) sc))
+  (to-ks (to-spinor x 0 sc) 0 sc))
 
 (defparameter *sail-2d-ks-kepler-eg*
   (make-instance
@@ -390,7 +407,7 @@ Includes:
    :tf (* 4 pi)
    :accfun #'(lambda (s r v sc) (ve2))
    :lightness 0d0
-   :x0 (to-ks 0 (slot-value *sail-2d-spin-kepler-eg* 'x0) *sail-2d-spin-kepler-eg*))
+   :x0 (to-ks (slot-value *sail-2d-spin-kepler-eg* 'x0) 0 *sail-2d-spin-kepler-eg*))
   "Two-dimensional Kustaanheimo-Stiefel EOM Keplerian (unperturbed) orbit example")
 
 (defparameter *sail-2d-ks-normal-eg*
@@ -399,7 +416,7 @@ Includes:
    :tf (* 8 pi)
    :pointfun #'sailpointingnormal
    :lightness 0.1d0
-   :x0 (to-ks 0 (slot-value *sail-2d-cart-normal-eg* 'x0) *sail-2d-cart-normal-eg*))
+   :x0 (to-ks (slot-value *sail-2d-cart-normal-eg* 'x0) 0 *sail-2d-cart-normal-eg*))
   "Two-dimensional Kustaanheimo-Stiefel EOM with sun-pointing sail example")
   
 (defparameter *sail-2d-ks-fixed-eg*
@@ -408,7 +425,7 @@ Includes:
    :tf (* 4 pi)
    :pointfun #'sailpointingfixed
    :lightness 0.1d0
-   :x0 (to-ks 0 (slot-value *sail-2d-cart-fixed-eg* 'x0) *sail-2d-cart-fixed-eg*)
+   :x0 (to-ks (slot-value *sail-2d-cart-fixed-eg* 'x0) 0 *sail-2d-cart-fixed-eg*)
    :rs (slot-value *sail-2d-cart-fixed-eg* 'rs))
   "Two-dimensional Kustaanheimo-Stiefel EOM with fixed pointing sail example")
 
@@ -418,7 +435,7 @@ Includes:
    :tf (* 4 pi)
    :pointfun #'sailpointingtable
    :lightness 0.1d0
-   :x0 (to-ks 0 (slot-value *sail-2d-cart-fixed-eg* 'x0) *sail-2d-cart-fixed-eg*)
+   :x0 (to-ks (slot-value *sail-2d-cart-fixed-eg* 'x0) 0 *sail-2d-cart-fixed-eg*)
    :rs (slot-value *sail-2d-cart-table-eg* 'rs))
   "Two-dimensional Kustaanheimo-Stiefel EOM with fixed pointing sail example")
 
@@ -444,7 +461,7 @@ Columns:
 (defun to-cartesian-traj (trajdata sc)
   "Convert trajectory data to cartesian"
   (loop for (s x) in trajdata
-     collect (multiple-value-list (to-cartesian s x sc))))
+     collect (reverse (multiple-value-list (to-cartesian x s sc)))))
 
 ;;; Classical orbital element conversion
 
@@ -551,18 +568,18 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	       collect slot
 	       collect (slot-value x slot)))))
 
-(defmethod to-cartesian (f (x coestate) &optional sc)
+(defmethod to-cartesian ((x coestate) f &optional sc)
   (with-slots (a e i lan aop tm) x
     (with-slots (mu basis) sc
       (multiple-value-bind (r v) (coe2rv a e i lan aop f mu basis)
 	(values
-	 tm
 	 (make-instance
 	  'cartstate
 	  :r r
-	  :v v))))))
+	  :v v)
+	 tm)))))
 
-(defmethod to-coe (tm (x cartstate) &optional sc)
+(defmethod to-coe ((x cartstate) tm &optional sc)
   "Convert cartesian to classical orbital element state"
   (with-slots (r v) x
     (with-slots (mu basis) sc
@@ -570,7 +587,6 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	     (nodev (nodev-rv mombv basis))
 	     (eccv (eccv-rv r v mu)))
 	(values
-	 (truan-rv eccv r mombv)
 	 (make-instance
 	  'coestate
 	  :a (sma-rv (norme r) (norme v) mu)
@@ -578,7 +594,8 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	  :i (inc-rv mombv basis)
 	  :lan (lan-rv nodev basis)
 	  :aop (aop-rv nodev eccv mombv)
-	  :tm tm))))))
+	  :tm tm)
+	 (truan-rv eccv r mombv))))))	 
 
 (defmethod energy ((x coestate) sc)
   (with-slots (a) x
@@ -643,18 +660,23 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	       collect slot
 	       collect (slot-value x slot)))))
 
-(defmethod to-mee (truan (x coestate) &optional sc)
-  (with-slots (a e i lan aop lan) x
-    (make-instance
-     'meestate
-     :p (* a (- 1 (expt e 2)))
-     :f (* e (cos (+ aop lan)))
-     :g (* e (sin (+ aop lan)))
-     :h (* (tan (/ i 2)) (cos lan))
-     :k (* (tan (/ i 2)) (sin lan))
-     :l (+ lan aop truan))))
+(defgeneric to-mee (x s &optional sc))
 
-(defmethod to-cartesian (tm (x meestate) &optional sc)
+(defmethod to-mee ((x coestate) truan &optional sc)
+  (with-slots (a e i lan aop lan tm) x
+    (values
+     (make-instance
+      'meestate
+      :p (* a (- 1 (expt e 2)))
+      :f (* e (cos (+ aop lan)))
+      :g (* e (sin (+ aop lan)))
+      :h (* (tan (/ i 2)) (cos lan))
+      :k (* (tan (/ i 2)) (sin lan))
+      :l (+ lan aop truan))
+     tm)))
+
+(defmethod to-cartesian ((x meestate) tm &optional sc)
+  "Modified equinoctial element state to cartesian"
   (with-slots (p f g h k l) x
     (with-slots (mu basis) sc
       (let* ((alpha2 (- (expt h 2) (expt k 2)))
@@ -662,7 +684,6 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	     (w (+ 1 (* f (cos l)) (* g (sin l))))
 	     (r (/ p w)))
 	(values
-	 tm
 	 (make-instance
 	  'cartstate
 	  :r (make-vector
@@ -698,12 +719,13 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 		     (* k (sin l))
 		     (* f h)
 		     (* g k))))
-	      basis)))))))
+	      basis))
+	 tm)))))
 
-(defmethod to-coe (tm (x meestate) &optional sc)
+(defmethod to-coe ((x meestate) tm &optional sc)
+  "Classical orbital element state from modified equinoctial"
   (with-slots (p f g h k l) x
     (values
-     (- l lan aop)
      (make-instance
       'coestate
       :a (/ p (- 1 (expt f 2) (expt g 2)))
@@ -712,13 +734,29 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	       (- 1 (expt h 2) (expt k 2)))
       :aop (atan (- (* g h) (* f k))
 		 (+ (* f h) (* g k)))
-      :lan (atan k h)))))
+      :lan (atan k h))
+     (- l lan aop))))
 
-#|
-(defmethod eom (tm (x meestate) sc)
+
+(defmethod eom (tm (x meestate) &optional sc)
   (with-slots (p f g h k l) x
-    (with-slots (
-|#
+    (with-slots (mu basis accfun) sc
+      (with-slots (r v) (to-cartesian x tm sc)
+	(let* ((rvbasis (rvbasis r v))
+	       (fv (funcall accfun tm r v sc))
+	       (fr (scalar (*i fv (first rvbasis))))
+	       (ft (scalar (*i fv (second basis))))
+	       (fn (scalar (*i fv (third basis))))
+	       (w (+ 1 (* f (cos l)) (* g (sin l)))))
+	  (make-instance
+	   'meestate
+	   :p (* 2 p (/ w) (sqrt (/ p mu)) ft)
+	   :f (* (sqrt (/ p mu))
+		 (+ (* fr (sin l))
+		    (* (+ (* (+ w 1) (cos l)) f) (/ ft w))
+		    (* (- (* k (cos l)) (* h (sin l))) g fn (/ w))))
+	   ))))))
+		    
 
 ;;; 3D examples
 
@@ -750,7 +788,7 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
        :tf (* 4 pi)
        :accfun #'(lambda (s r v sc) (ve3))
        :lightness 0d0
-       :x0 (second (multiple-value-list (to-cartesian t0 x0 sc)))
+       :x0 (to-cartesian x0 t0 sc)
        :basis basis
        :rs rs))))
 
@@ -763,7 +801,7 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
        :tf (* 4 pi)
        :accfun #'(lambda (s r v sc) (ve3))
        :lightness 0d0
-       :x0 (to-spinor 0 x0 sc)
+       :x0 (to-spinor x0 0 sc)
        :basis basis
        :rs rs))))
 
@@ -776,7 +814,7 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
        :tf (* 4 pi)
        :accfun #'(lambda (s r v sc) (ve3))
        :lightness 0d0
-       :x0 (to-ks 0 x0 sc)
+       :x0 (to-ks x0 0 sc)
        :basis basis
        :rs rs))))
 
@@ -807,7 +845,7 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
        :tf (* 4 pi)
        :pointfun #'sailpointingnormal
        :lightness lightness
-       :x0 (second (multiple-value-list (to-cartesian t0 x0 sc)))
+       :x0 (to-cartesian x0 t0 sc)
        :basis basis))))
 
 (defparameter *sail-3d-spin-normal-eg*
@@ -819,7 +857,7 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
        :tf (* 4 pi)
        :pointfun #'sailpointingnormal
        :lightness lightness
-       :x0 (to-spinor 0 x0 sc)
+       :x0 (to-spinor x0 0 sc)
        :basis basis))))
 
 (defparameter *sail-3d-ks-normal-eg*
@@ -831,5 +869,65 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
        :tf (* 4 pi)
        :pointfun #'sailpointingnormal
        :lightness lightness
-       :x0 (to-ks 0 x0 sc)
+       :x0 (to-ks x0 0 sc)
        :basis basis))))
+
+;; 3D sail fixed examples
+
+(defparameter *sail-3d-coe-fixed-eg*
+  (make-instance
+   'sail
+   :t0 0
+   :tf (* 4 pi)
+   :pointfun #'sailpointingfixed
+   :lightness 0.1
+   :x0 (make-instance
+	'coestate
+	:a 1.1
+	:e 0.1
+	:i 0.1
+	:lan 0.1
+	:aop 0.1
+	:tm 0)
+   :basis (list (ve3 :e1 1) (ve3 :e2 1) (ve3 :e3 1))
+   :rs (rotor (bve3 :e1e2 1) (atan (/ (sqrt 2))))))
+
+(defparameter *sail-3d-cart-fixed-eg*
+  (let ((sc *sail-3d-coe-fixed-eg*))
+    (with-slots (t0 tf pointfun lightness x0 basis rs) sc
+      (make-instance
+       'sail
+       :t0 t0
+       :tf tf
+       :pointfun pointfun
+       :lightness lightness
+       :x0 (to-cartesian x0 t0 sc)
+       :basis basis
+       :rs rs))))
+
+(defparameter *sail-3d-spin-fixed-eg*
+  (let ((sc *sail-3d-cart-fixed-eg*))
+    (with-slots (t0 tf pointfun lightness x0 basis rs) sc
+      (make-instance
+       'sail
+       :t0 t0
+       :tf tf
+       :pointfun pointfun
+       :lightness lightness
+       :x0 (to-spinor x0 t0 sc)
+       :basis basis
+       :rs rs))))
+
+(defparameter *sail-3d-ks-fixed-eg*
+  (let ((sc *sail-3d-spin-fixed-eg*))
+    (with-slots (t0 tf pointfun lightness x0 basis rs) sc
+      (make-instance
+       'sail
+       :t0 t0
+       :tf tf
+       :pointfun pointfun
+       :lightness lightness
+       :x0 (to-ks x0 t0 sc)
+       :basis basis
+       :rs rs))))
+
