@@ -241,7 +241,7 @@ which allows us to rewrite the differential equations from Arakida and Fukushima
 \begin_layout Standard
 Some further definitions are required.
  The orbital elements Arakida and Fukushima use are 
-\begin_inset Formula $\left(\alpha,\beta,E,t_{0}\right)$
+\begin_inset Formula $\left(\alpha,\beta,E,t\right)$
 \end_inset
 
  where
@@ -425,11 +425,27 @@ W' & = & -\frac{r}{2}\mathbf{v}\cdot\mathbf{f}
 \end_layout
 
 \begin_layout Standard
-Finally, for 
-\begin_inset Formula $t_{0}$
+Finally, for time 
+\begin_inset Formula $t$
 \end_inset
 
 :
+\begin_inset Formula 
+\[
+\frac{dt}{ds}=t'=r
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+For 
+\begin_inset Formula $t_{0}$
+\end_inset
+
+, from Arakida and Fukushima:
 \begin_inset Formula 
 \[
 t_{0}'=\frac{1}{\omega_{0}}\mathbf{F}\cdot\left[\left(\alpha\sin\omega_{0}s-\beta\cos\omega_{0}s\right)s+\frac{1}{2\omega_{0}}\left(\alpha\cos\omega_{0}s+\beta\sin\omega_{0}s\right)\right]
