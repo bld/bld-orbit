@@ -975,8 +975,9 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	      :aop 0.1
 	      :tm 0)
 	 :basis *j2000*
-	 :rs (list (list (* 2 pi) (rotor (bve3 :e1e2 1) (/ pi 2)))
-		   (list (* 4 pi) (rotor (bve3 :e1e2 1) (atan (/ (sqrt 2)))))))
+	 :rs (list (list (* 2 pi) (rotor (bve3 :e1e2 1) (atan (/ (sqrt 2)))))
+		   (list (* 4 pi) (rotor (bve3 :e1e2 1) (atan (/ (sqrt 2)))))
+		   ))
    :cart (with-slots (tf pointfun lightness x0 basis rs) coe
 	   (make-instance
 	    'sail
