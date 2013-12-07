@@ -140,8 +140,9 @@ Includes:
    (t0 :initarg :t0 :initform 0d0 :documentation "Initial time")
    (tf :initarg :tf :initform (* 2 pi) :documentation "Final time")
    (x0 :initarg :x0 :initform (make-instance 'cartstate :r (ve2 :e1 1) :v (ve2 :e2 1)))
-   (rs :initarg :rs :initform (re2 :s 1d0) :documentation "Sail orientation rotor wrt orbital position frame"))
-  (:documentation "Solar sail orbit problem"))
+   (rs :initarg :rs :initform (re2 :s 1d0) :documentation "Sail orientation rotor wrt orbital position frame")
+   (outfile :initarg :outfile :initform "sail-2d-cart-kepler-eg.dat" :documentation "Output filename"))
+  (:documentation "Solar sail orbit problem. Default is 2D Kepler with circular orbit, and units of AU and TU."))
 
 (let ((slots '(eom mu accfun pointfun lightness basis t0 tf x0 rs)))
   (defmethod print-object ((sail sail) s)
@@ -153,19 +154,16 @@ Includes:
 
 (defgeneric propagate (sc &key))
 
-(defmethod propagate ((sc sail) &key)
+(defmethod propagate ((sc sail) &key (outfile (slot-value sc 'outfile)))
   "Propagate sailcraft trajectory. Default maximum stepsize is the difference between T0 and TF."
   (with-slots (eom t0 tf x0) sc
-    (rka eom t0 tf x0 :param sc :hmax (- tf t0))))
+    (let ((results (rka eom t0 tf x0 :param sc :hmax (- tf t0))))
+      (when outfile (write-cart-traj outfile (to-cartesian-traj results sc)))
+      results)))
 
-(defmethod propagate ((h hash-table) &key dim prob)
+(defmethod propagate ((h hash-table) &key)
   "Propagate a hash table of objects & write data file"
-  (maphash
-   #'(lambda (k v)
-       (write-cart-traj
-	(format nil "~(sail-~a-~a-~a-eg.dat~)" dim k prob)
-	(to-cartesian-traj (propagate v) v)))
-   h))
+  (maphash2 #'(lambda (k v) (propagate v)) h))
 
 ;;; Cartesian state
 
@@ -694,23 +692,19 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 
 (defparameter *sail-2d-kepler-examples*
   (make-hash*
-   :cart (make-instance 
-	  'sail
-	  :tf (* 4 pi)
-	  :x0 (make-instance
-	       'cartstate
-	       :r (ve2 :e1 1)
-	       :v (ve2 :e2 1)))
+   :cart (make-instance 'sail)
    :spin (with-slots (x0) cart
 	   (make-instance
 	    'sail
-	    :tf (* 4 pi)
-	    :x0 (to-spinor x0 0 cart)))
+	    :tf (* 2 pi)
+	    :x0 (to-spinor x0 0 cart)
+	    :outfile "sail-2d-spin-kepler-eg.dat"))
    :ks (with-slots (x0) cart
 	 (make-instance
 	  'sail
-	  :tf (* 4 pi)
-	  :x0 (to-ks x0 0 cart)))))
+	  :tf (* 2 pi)
+	  :x0 (to-ks x0 0 cart)
+	  :outfile "sail-2d-ks-kepler-eg.dat"))))
 
 ;; 2D normal examples
 
@@ -720,21 +714,24 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	  'sail
 	  :tf (* 4 pi)
 	  :pointfun #'sail-pointing-normal
-	  :lightness 0.1d0)
+	  :lightness 0.1d0
+	  :outfile "sail-2d-cart-normal-eg.dat")
    :spin (with-slots (x0 pointfun lightness) cart
 	   (make-instance
 	    'sail
 	    :tf (* 4 pi)
 	    :pointfun pointfun
 	    :lightness lightness
-	    :x0 (to-spinor x0 0 cart)))
+	    :x0 (to-spinor x0 0 cart)
+	    :outfile "sail-2d-spin-normal-eg.dat"))
    :ks (with-slots (x0 pointfun lightness) cart
 	 (make-instance
 	  'sail
 	  :tf (* 8 pi)
 	  :pointfun #'sail-pointing-normal
 	  :lightness 0.1d0
-	  :x0 (to-ks x0 0 cart)))))
+	  :x0 (to-ks x0 0 cart)
+	  :outfile "sail-2d-ks-normal-eg.dat"))))
 
 ;; 2D fixed examples
 
@@ -746,7 +743,8 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	  :pointfun #'sail-pointing-fixed
 	  :lightness 0.1
 	  :tf (* 4 pi)
-	  :rs (rotor (bve2 :e1e2 1) (atan (/ (sqrt 2)))))
+	  :rs (rotor (bve2 :e1e2 1) (atan (/ (sqrt 2))))
+	  :outfile "sail-2d-cart-fixed-eg.dat")
    :spin (with-slots (pointfun lightness x0 rs) cart
 	   (make-instance
 	    'sail
@@ -754,7 +752,8 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	    :pointfun pointfun
 	    :lightness lightness
 	    :x0 (to-spinor x0 0 cart)
-	    :rs rs))
+	    :rs rs
+	    :outfile "sail-2d-spin-fixed-eg.dat"))
    :ks (with-slots (pointfun lightness x0 rs) cart
 	 (make-instance
 	  'sail
@@ -762,7 +761,8 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	  :pointfun pointfun
 	  :lightness lightness
 	  :x0 (to-ks x0 0 cart)
-	  :rs rs))))
+	  :rs rs
+	  :outfile "sail-2d-ks-fixed-eg.dat"))))
 
 ;; 2D table examples
 
@@ -774,7 +774,8 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	  :tf (* 4 pi)
 	  :pointfun #'sail-pointing-table
 	  :rs (list (list (* 2 pi) (rotor (bve2 :e1e2 1) (/ pi 2)))
-		    (list (* 4 pi) (rotor (bve2 :e1e2 1) (atan (/ (sqrt 2)))))))
+		    (list (* 4 pi) (rotor (bve2 :e1e2 1) (atan (/ (sqrt 2))))))
+	  :outfile "sail-2d-cart-table-eg.dat")
    :spin (with-slots (pointfun lightness x0 rs) cart
 	   (make-instance
 	    'sail
@@ -782,7 +783,8 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	    :pointfun pointfun
 	    :lightness lightness
 	    :x0 (to-spinor x0 0 cart)
-	    :rs rs))
+	    :rs rs
+	    :outfile "sail-2d-spin-table-eg.dat"))
    :ks (with-slots (pointfun lightness x0 rs) cart
 	 (make-instance
 	  'sail
@@ -790,7 +792,8 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	  :pointfun pointfun
 	  :lightness lightness
 	  :x0 (to-ks x0 0 cart)
-	  :rs rs))))
+	  :rs rs
+	  :outfile "sail-2d-ks-table-eg.dat"))))
 
 ;;; 3D examples
 
@@ -812,7 +815,8 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	      :aop 0.1
 	      :tm 0)
 	 :basis *j2000*
-	 :rs (re3 :s 1))
+	 :rs (re3 :s 1)
+	 :outfile "sail-3d-coe-kepler-eg.dat")
    :cart (with-slots (tf accfun lightness x0 basis rs) coe
 	   (make-instance
 	    'sail
@@ -821,7 +825,8 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	    :lightness lightness
 	    :x0 (to-cartesian x0 0 coe)
 	    :basis basis
-	    :rs rs))
+	    :rs rs
+	    :outfile "sail-3d-cart-kepler-eg.dat"))
    :spin (with-slots (tf accfun lightness x0 basis rs) coe
 	   (make-instance
 	    'sail
@@ -830,7 +835,8 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	    :lightness lightness
 	    :x0 (to-spinor x0 0 coe)
 	    :basis basis
-	    :rs rs))
+	    :rs rs
+	    :outfile "sail-3d-spin-kepler-eg.dat"))
    :ks (with-slots (tf accfun lightness x0 basis rs) coe
 	 (make-instance
 	  'sail
@@ -839,7 +845,8 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	  :lightness lightness
 	  :x0 (to-ks x0 0 coe)
 	  :basis basis
-	  :rs rs))
+	  :rs rs
+	  :outfile "sail-3d-ks-kepler-eg.dat"))
    :mee (with-slots (tf accfun lightness x0 basis rs) coe
 	  (make-instance
 	   'sail
@@ -848,7 +855,8 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	   :lightness lightness
 	   :x0 (to-mee x0 0 coe)
 	   :basis basis
-	   :rs rs))))
+	   :rs rs
+	   :outfile "sail-3d-mee-kepler-eg.dat"))))
 
 ;; 3D sail normal examples
 
@@ -867,7 +875,8 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	      :lan 0.1
 	      :aop 0.1
 	      :tm 0)
-	 :basis *j2000*)
+	 :basis *j2000*
+	 :outfile "sail-3d-coe-normal-eg.dat")
    :cart (with-slots (tf pointfun lightness x0 basis) coe
 	   (make-instance
 	    'sail
@@ -875,7 +884,8 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	    :pointfun pointfun
 	    :lightness lightness
 	    :x0 (to-cartesian x0 0 coe)
-	    :basis basis))
+	    :basis basis
+	    :outfile "sail-3d-cart-normal-eg.dat"))
    :spin (with-slots (tf pointfun lightness x0 basis) coe
 	   (make-instance
 	    'sail
@@ -883,7 +893,8 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	    :pointfun pointfun
 	    :lightness lightness
 	    :x0 (to-spinor x0 0 coe)
-	    :basis basis))
+	    :basis basis
+	    :outfile "sail-3d-spin-normal-eg.dat"))
    :ks (with-slots (tf pointfun lightness x0 basis) coe
 	 (make-instance
 	  'sail
@@ -891,7 +902,8 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	  :pointfun pointfun
 	  :lightness lightness
 	  :x0 (to-ks x0 0 coe)
-	  :basis basis))
+	  :basis basis
+	  :outfile "sail-3d-ks-normal-eg.dat"))
    :mee (with-slots (tf pointfun lightness x0 basis) coe
 	  (make-instance
 	   'sail
@@ -899,7 +911,8 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	   :pointfun pointfun
 	   :lightness lightness
 	   :x0 (to-mee x0 0 coe)
-	   :basis basis))))
+	   :basis basis
+	   :outfile "sail-3d-mee-normal-eg.dat"))))
 
 ;; 3D sail fixed examples
 
@@ -919,7 +932,8 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	      :aop 0.1
 	      :tm 0)
 	 :basis *j2000*
-	 :rs (rotor (bve3 :e1e2 1) (atan (/ (sqrt 2)))))
+	 :rs (rotor (bve3 :e1e2 1) (atan (/ (sqrt 2))))
+	 :outfile "sail-3d-coe-fixed-eg.dat")
    :cart (with-slots (tf pointfun lightness x0 basis rs) coe
 	   (make-instance
 	    'sail
@@ -928,7 +942,8 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	    :lightness lightness
 	    :x0 (to-cartesian x0 0 coe)
 	    :basis basis
-	    :rs rs))
+	    :rs rs
+	    :outfile "sail-3d-cart-fixed-eg.dat"))
    :spin (with-slots (tf pointfun lightness x0 basis rs) coe
 	   (make-instance
 	    'sail
@@ -937,7 +952,8 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	    :lightness lightness
 	    :x0 (to-spinor x0 0 coe)
 	    :basis basis
-	    :rs rs))
+	    :rs rs
+	    :outfile "sail-3d-spin-fixed-eg.dat"))
    :ks (with-slots (tf pointfun lightness x0 basis rs) coe
 	 (make-instance
 	  'sail
@@ -946,7 +962,8 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	  :lightness lightness
 	  :x0 (to-ks x0 0 coe)
 	  :basis basis
-	  :rs rs))
+	  :rs rs
+	  :outfile "sail-3d-ks-fixed-eg.dat"))
    :mee (with-slots (tf pointfun lightness x0 basis rs) coe
 	  (make-instance
 	   'sail
@@ -955,7 +972,8 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	   :lightness lightness
 	   :x0 (to-mee x0 0 coe)
 	   :basis basis
-	   :rs rs))))
+	   :rs rs
+	   :outfile "sail-3d-mee-fixed-eg.dat"))))
 
 ;; 3D table examples
 
@@ -977,7 +995,8 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	 :basis *j2000*
 	 :rs (list (list (* 2 pi) (rotor (bve3 :e1e2 1) (atan (/ (sqrt 2)))))
 		   (list (* 4 pi) (rotor (bve3 :e1e2 1) (atan (/ (sqrt 2)))))
-		   ))
+		   )
+	 :outfile "sail-3d-coe-table-eg.dat")
    :cart (with-slots (tf pointfun lightness x0 basis rs) coe
 	   (make-instance
 	    'sail
@@ -986,7 +1005,8 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	    :lightness lightness
 	    :x0 (to-cartesian x0 0 coe)
 	    :basis basis
-	    :rs rs))
+	    :rs rs
+	    :outfile "sail-3d-cart-table-eg.dat"))
    :spin (with-slots (tf pointfun lightness x0 basis rs) coe
 	   (make-instance
 	    'sail
@@ -995,7 +1015,8 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	    :lightness lightness
 	    :x0 (to-spinor x0 0 coe)
 	    :basis basis
-	    :rs rs))
+	    :rs rs
+	    :outfile "sail-3d-spin-table-eg.dat"))
    :ks (with-slots (tf pointfun lightness x0 basis rs) coe
 	 (make-instance
 	  'sail
@@ -1004,7 +1025,8 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	  :lightness lightness
 	  :x0 (to-ks x0 0 coe)
 	  :basis basis
-	  :rs rs))
+	  :rs rs
+	  :outfile "sail-3d-ks-table-eg.dat"))
    :mee (with-slots (tf pointfun lightness x0 basis rs) coe
 	  (make-instance
 	   'sail
@@ -1013,4 +1035,5 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	   :lightness lightness
 	   :x0 (to-mee x0 0 coe)
 	   :basis basis
-	   :rs rs))))
+	   :rs rs
+	   :outfile "sail-3d-mee-table-eg.dat"))))
