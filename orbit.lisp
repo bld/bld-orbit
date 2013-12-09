@@ -128,11 +128,42 @@ Includes:
 	     (rsi (second (find s rs :test #'<= :key #'first))))
 	(rotateg (first basis) (*g rvr rsi))))))
 
+;;; State classes 
+
+;; Kustaanheimo-Stiefel
+
+(defclass ksstate ()
+  ((alpha :initarg :alpha :documentation "U at s=0")
+   (beta :initarg :beta :documentation "dU/ds / w0 at s=0")
+   (e :initarg :e :documentation "Keplerian specific orbital energy")
+   (tm :initarg :tm :documentation "Time"))
+  (:documentation "Kustaanheimo-Stiefel orbital element state"))
+
+(let ((slots '(alpha beta e tm)))
+  (defmethod print-object ((x ksstate) s)
+    (format s "#<KSSTATE ~{~a~^ ~}>"
+	    (loop for slot in slots
+	       collect (format nil ":~a ~a" slot (slot-value x slot))))))
+
+(defstatearithmetic ksstate (alpha beta e tm))
+
+;;; Body class
+
+(defclass body ()
+  ((eom :initarg :eom :initform #'eom :documentation "Equations of motion")
+   (cb :initarg :cb :documentation "Central body")
+   (mu :initarg :mu :initform 1 :documentation "Gravitational parameter of body")
+   (ls :initarg :ls :initform 0 :documentation "Luminosity of body")
+   (x0 :initarg :x0 :initform
+       (make-instance 'ksstate :tm 0 :e -0.5 :alpha (re2 :s 1) :beta (re2 :e1e2 -1))
+       :documentation "Ephemeris of body's orbit")
+   (basis :initarg :basis :initform (list (ve2 :e1 1) (ve2 :e2 1)) :documentation "Basis in which multivectors defined")))
+
 ;;; Sail class
 
 (defclass sail ()
   ((eom :initarg :eom :initform #'eom :documentation "Equations of motion")
-   (mu :initarg :mu :initform 1d0 :documentation "Gravitational parameter of central body at position (0 0 0) wrt spacecraft")
+   (cb :initarg :cb :initform (make-instance 'body :mu 1d0) :documentation "Central body")
    (accfun :initarg :accfun :initform #'sail-ideal-acc :documentation "Sail acceleration function")
    (pointfun :initarg :pointfun :initform #'sail-pointing-fixed :documentation "Sail pointing function")
    (lightness :initarg :lightness :initform 0d0 :documentation "Ratio of solar to gravitational acceleration")
@@ -144,7 +175,7 @@ Includes:
    (outfile :initarg :outfile :initform "sail-2d-cart-kepler-eg.dat" :documentation "Output filename"))
   (:documentation "Solar sail orbit problem. Default is 2D Kepler with circular orbit, and units of AU and TU."))
 
-(let ((slots '(eom mu accfun pointfun lightness basis t0 tf x0 rs)))
+(let ((slots '(eom cb accfun pointfun lightness basis t0 tf x0 rs)))
   (defmethod print-object ((sail sail) s)
     (format s "#<SAIL ~{~a~^~%  ~}>"
 	    (loop for slot in slots
@@ -178,19 +209,21 @@ Includes:
 (defstatearithmetic cartstate (r v))
 
 (defmethod energy ((x cartstate) sc)
-  (with-slots (mu) sc
-    (with-slots (r v) x
-      (- (/ (scalar (exptg v 2)) 2) (/ mu (norme r))))))
+  (with-slots (cb) sc
+    (with-slots (mu) cb
+      (with-slots (r v) x
+	(- (/ (scalar (exptg v 2)) 2) (/ mu (norme r)))))))
 
 (defmethod eom (tm (x cartstate) &optional sc)
   "Solar sail cartesian equations of motion"
   (with-slots (r v) x
-    (with-slots (lightness mu accfun) sc
-      (make-instance
-       'cartstate
-       :r v
-       :v (+ (funcall accfun tm x sc)
-	     (gravity tm r mu))))))
+    (with-slots (lightness cb accfun) sc
+      (with-slots (mu) cb
+	(make-instance
+	 'cartstate
+	 :r v
+	 :v (+ (funcall accfun tm x sc)
+	       (gravity tm r mu)))))))
 
 (defmethod to-cartesian ((x cartstate) tm sc)
   (values x tm))
@@ -211,23 +244,25 @@ Includes:
 (defmethod energy ((x spinorstate) sc)
   "Keplerian orbit energy"
   (with-slots (u duds) x
-    (with-slots (mu) sc
-      (/ (- (* 2 (norme2 duds)) mu) (norme2 u)))))
+    (with-slots (cb) sc
+      (with-slots (mu) cb
+	(/ (- (* 2 (norme2 duds)) mu) (norme2 u))))))
 
 (defmethod eom (s (x spinorstate) &optional sc)
   "Spinor equations of motion: 2 dU/ds - E U = f r U, dt/ds = |r|"
   (with-slots (u duds tm) x
-    (with-slots (mu basis accfun) sc
-      (let* ((rm (norme2 u))
-	     (e (/ (- (* 2 (norme2 duds)) mu) rm))
-	     (r (spin (first basis) u))
-	     (v (* 2 (*g3 duds (first basis) (revg u))))
-	     (f (funcall accfun s x sc)))
-      (make-instance
-       'spinorstate
-       :u duds
-       :duds (/ (+ (*g3 f r u) (* e u)) 2)
-       :tm (norme2 u))))))
+    (with-slots (cb basis accfun) sc
+      (with-slots (mu) cb
+	(let* ((rm (norme2 u))
+	       (e (/ (- (* 2 (norme2 duds)) mu) rm))
+	       (r (spin (first basis) u))
+	       (v (* 2 (*g3 duds (first basis) (revg u))))
+	       (f (funcall accfun s x sc)))
+	  (make-instance
+	   'spinorstate
+	   :u duds
+	   :duds (/ (+ (*g3 f r u) (* e u)) 2)
+	   :tm (norme2 u)))))))
 
 (defmethod to-cartesian ((x spinorstate) s sc)
   "Convert spinor state to cartesian coordinates given S and X"
@@ -262,51 +297,37 @@ Includes:
 
 ;;; Kustaanheimo-Stiefel Orbit Element equations of motion
 
-(defclass ksstate ()
-  ((alpha :initarg :alpha :documentation "U at s=0")
-   (beta :initarg :beta :documentation "dU/ds / w0 at s=0")
-   (e :initarg :e :documentation "Keplerian specific orbital energy")
-   (tm :initarg :tm :documentation "Time"))
-  (:documentation "Kustaanheimo-Stiefel orbital element state"))
-
-(let ((slots '(alpha beta e tm)))
-  (defmethod print-object ((x ksstate) s)
-    (format s "#<KSSTATE ~{~a~^ ~}>"
-	    (loop for slot in slots
-	       collect (format nil ":~a ~a" slot (slot-value x slot))))))
-
-(defstatearithmetic ksstate (alpha beta e tm))
-
 (defmethod eom (s (x ksstate) &optional sc)
   "Kustaanheimo-Stiefel orbit element equations of motion from Arakida and Fukushima"
   (with-slots (alpha beta e tm) x
-    (with-slots (basis mu accfun x0) sc
-      (with-slots ((e0 e)) x0
-	(let* ((hk0 (- e0))
-	       (w0 (sqrt (/ hk0 2)))
-	       (hk (- e))
-	       (w (/ (- hk hk0) 2))
-	       (u (+ (* alpha (cos (* w0 s)))
-		     (* beta (sin (* w0 s)))))
-	       (duds (* w0
-			(- (* beta (cos (* w0 s)))
-			   (* alpha (sin (* w0 s))))))
-	       (rv (spin (first basis) u))
-	       (rm (norme rv))
-	       (vv (* 2 (/ rm) (*g3 duds (first basis) (revg u))))
-	       (fv (funcall accfun s x sc))
-	       (ff (- (/ (*g fv rv u) 2) (* w u))))
-	  (make-instance
-	   'ksstate
-	   :alpha (- (* ff (/ (sin (* w0 s)) w0)))
-	   :beta (* ff (/ (cos (* w0 s)) w0))
-	   :e (* rm (scalar (*i vv fv)))
-	   :tm rm))))))
+    (with-slots (basis cb accfun x0) sc
+      (with-slots (mu) cb
+	(with-slots ((e0 e)) x0
+	  (let* ((hk0 (- e0))
+		 (w0 (sqrt (/ hk0 2)))
+		 (hk (- e))
+		 (w (/ (- hk hk0) 2))
+		 (u (+ (* alpha (cos (* w0 s)))
+		       (* beta (sin (* w0 s)))))
+		 (duds (* w0
+			  (- (* beta (cos (* w0 s)))
+			     (* alpha (sin (* w0 s))))))
+		 (rv (spin (first basis) u))
+		 (rm (norme rv))
+		 (vv (* 2 (/ rm) (*g3 duds (first basis) (revg u))))
+		 (fv (funcall accfun s x sc))
+		 (ff (- (/ (*g fv rv u) 2) (* w u))))
+	    (make-instance
+	     'ksstate
+	     :alpha (- (* ff (/ (sin (* w0 s)) w0)))
+	     :beta (* ff (/ (cos (* w0 s)) w0))
+	     :e (* rm (scalar (*i vv fv)))
+	     :tm rm)))))))
 
 (defmethod to-spinor ((x ksstate) s sc)
   "Convert KS state to spinor state"
   (with-slots (alpha beta e tm) x
-    (with-slots (mu x0) sc
+    (with-slots (x0) sc
       (let* ((e0 (energy x0 sc))
 	     (hk0 (- e0))
 	     (w0 (sqrt (/ hk0 2)))
@@ -332,7 +353,7 @@ Includes:
 (defmethod to-ks ((x spinorstate) s sc)
   "Convert spinor state to KS"
   (with-slots (u duds tm) x
-    (with-slots (mu x0) sc
+    (with-slots (x0) sc
       (let ((e0 (energy x0 sc)))
 	(let* ((hk0 (- e0))
 	       (w0 (sqrt (/ hk0 2)))
@@ -488,75 +509,79 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 
 (defmethod to-cartesian ((x coestate) f sc)
   (with-slots (a e i lan aop tm) x
-    (with-slots (mu basis) sc
-      (multiple-value-bind (r v) (coe2rv a e i lan aop f mu basis)
-	(values
-	 (make-instance
-	  'cartstate
-	  :r r
-	  :v v)
-	 tm)))))
+    (with-slots (cb basis) sc
+      (with-slots (mu) cb
+	(multiple-value-bind (r v) (coe2rv a e i lan aop f mu basis)
+	  (values
+	   (make-instance
+	    'cartstate
+	    :r r
+	    :v v)
+	   tm))))))
 
 (defmethod to-coe ((x cartstate) tm sc)
   "Convert cartesian to classical orbital element state"
   (with-slots (r v) x
-    (with-slots (mu basis) sc
-      (let* ((mombv (mombv-rv r v))
-	     (nodev (nodev-rv mombv basis))
-	     (eccv (eccv-rv r v mu)))
-	(values
-	 (make-instance
-	  'coestate
-	  :a (sma-rv (norme r) (norme v) mu)
-	  :e (norme eccv)
-	  :i (inc-rv mombv basis)
-	  :lan (lan-rv nodev basis)
-	  :aop (aop-rv nodev eccv mombv)
-	  :tm tm)
-	 (truan-rv eccv r mombv))))))	 
+    (with-slots (cb basis) sc
+      (with-slots (mu) cb
+	(let* ((mombv (mombv-rv r v))
+	       (nodev (nodev-rv mombv basis))
+	       (eccv (eccv-rv r v mu)))
+	  (values
+	   (make-instance
+	    'coestate
+	    :a (sma-rv (norme r) (norme v) mu)
+	    :e (norme eccv)
+	    :i (inc-rv mombv basis)
+	    :lan (lan-rv nodev basis)
+	    :aop (aop-rv nodev eccv mombv)
+	    :tm tm)
+	   (truan-rv eccv r mombv)))))))
 
 (defmethod energy ((x coestate) sc)
   (with-slots (a) x
-    (with-slots (mu) sc
-      (- (/ mu 2 a)))))
+    (with-slots (cb) sc
+      (with-slots (mu) cb
+	(- (/ mu 2 a))))))
 
 (defmethod eom (f (x coestate) &optional sc)
   "Classical orbital element equations of motion. Watch for singularities."
   (with-slots (a e i lan aop tm) x
-    (with-slots (mu accfun basis) sc
-      (multiple-value-bind (r v) (coe2rv a e i lan aop f mu basis) ; position & velocity
-	(let* ((rm (norme r)) ; radius
-	       (p (* a (- 1 (expt e 2)))) ; semi latus rectum
-	       (fv (funcall accfun f x sc)) ; force vector
-	       (obasis (rvbasis r v)) ; orbit basis from position/velocity
-	       (sf (scalar (*i fv (first obasis)))) ; radial force
-	       (tf (scalar (*i fv (second obasis)))) ; transverse force
-	       (wf (scalar (*i fv (third obasis)))) ; orbit normal force
-	       (dlan (* (/ (expt rm 3) mu p (sin i)) ; derivative of longitude of ascending node
-			 (sin (+ f aop))
-			 wf)))
-	(make-instance
-	 'coestate
-	 :a (* (/ (* 2 p (expt rm 2))
-		  mu (expt (- 1 (expt e 2)) 2))
-	       (+ (* sf e (sin f)) (/ (* tf p) rm)))
-	 :e (* (/ (expt rm 2) mu)
-	       (+ (* sf (sin f))
-		  (* tf (+ 1 (/ rm p)) (cos f))
-		  (* tf (/ rm p) e)))
-	 :i (* (/ (expt rm 3) mu p)
-	       (cos (+ f aop))
-	       wf)
-	 :lan dlan
-	 :aop (- (* (/ (expt rm 2) mu e)
-		    (- (* tf (+ 1 (/ rm p)) (sin f))
-		       (* sf (cos f))))
-		 (* dlan (cos i)))
-	 :tm (* (/ (expt rm 2) (sqrt (* mu p)))
-		(- 1
-		   (* (/ (expt rm 2) mu e)
-		      (- (* sf (cos f))
-			 (* tf (+ 1 (/ rm p)) (sin f))))))))))))
+    (with-slots (cb accfun basis) sc
+      (with-slots (mu) cb
+	(multiple-value-bind (r v) (coe2rv a e i lan aop f mu basis) ; position & velocity
+	  (let* ((rm (norme r)) ; radius
+		 (p (* a (- 1 (expt e 2)))) ; semi latus rectum
+		 (fv (funcall accfun f x sc)) ; force vector
+		 (obasis (rvbasis r v)) ; orbit basis from position/velocity
+		 (sf (scalar (*i fv (first obasis)))) ; radial force
+		 (tf (scalar (*i fv (second obasis)))) ; transverse force
+		 (wf (scalar (*i fv (third obasis)))) ; orbit normal force
+		 (dlan (* (/ (expt rm 3) mu p (sin i)) ; derivative of longitude of ascending node
+			  (sin (+ f aop))
+			  wf)))
+	    (make-instance
+	     'coestate
+	     :a (* (/ (* 2 p (expt rm 2))
+		      mu (expt (- 1 (expt e 2)) 2))
+		   (+ (* sf e (sin f)) (/ (* tf p) rm)))
+	     :e (* (/ (expt rm 2) mu)
+		   (+ (* sf (sin f))
+		      (* tf (+ 1 (/ rm p)) (cos f))
+		      (* tf (/ rm p) e)))
+	     :i (* (/ (expt rm 3) mu p)
+		   (cos (+ f aop))
+		   wf)
+	     :lan dlan
+	     :aop (- (* (/ (expt rm 2) mu e)
+			(- (* tf (+ 1 (/ rm p)) (sin f))
+			   (* sf (cos f))))
+		     (* dlan (cos i)))
+	     :tm (* (/ (expt rm 2) (sqrt (* mu p)))
+		    (- 1
+		       (* (/ (expt rm 2) mu e)
+			  (- (* sf (cos f))
+			     (* tf (+ 1 (/ rm p)) (sin f)))))))))))))
 
 ;;; Modified equinoctial orbital elements
 
@@ -595,49 +620,50 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 (defmethod to-cartesian ((x meestate) tm sc)
   "Modified equinoctial element state to cartesian"
   (with-slots (p f g h k l) x
-    (with-slots (mu basis) sc
-      (let* ((alpha2 (- (expt h 2) (expt k 2)))
-	     (s2 (+ 1 (expt h 2) (expt k 2)))
-	     (w (+ 1 (* f (cos l)) (* g (sin l))))
-	     (r (/ p w)))
-	(values
-	 (make-instance
-	  'cartstate
-	  :r (make-vector
-	      (list
-	       (* (/ r s2)
-		  (+ (cos l) (* alpha2 (cos l)) (* 2 h k (sin l))))
-	       (* (/ r s2)
-		  (+ (sin l) (- (* alpha2 (sin l))) (* 2 h k (cos l))))
-	       (* (/ (* 2 r) s2)
-		  (- (* h (sin l)) (* k (cos l)))))
-	      basis)
-	  :v (make-vector
-	      (list
-	       (* (/ -1 s2)
-		  (sqrt (/ mu p))
-		  (+ (sin l)
-		     (* alpha2 (sin l))
-		     (* -2 h k (cos l))
-		     g
-		     (* -2 f h k)
-		     (* alpha2 g)))
-	       (* (/ -1 s2)
-		  (sqrt (/ mu p))
-		  (+ (- (cos l))
-		     (* alpha2 (cos l))
-		     (* 2 h k (sin l))
-		     (- f)
-		     (* 2 g h k)
-		     (* alpha2 f)))
-	       (* (/ 2 s2)
-		  (sqrt (/ mu p))
-		  (+ (* h (cos l))
-		     (* k (sin l))
-		     (* f h)
-		     (* g k))))
-	      basis))
-	 tm)))))
+    (with-slots (cb basis) sc
+      (with-slots (mu) cb
+	(let* ((alpha2 (- (expt h 2) (expt k 2)))
+	       (s2 (+ 1 (expt h 2) (expt k 2)))
+	       (w (+ 1 (* f (cos l)) (* g (sin l))))
+	       (r (/ p w)))
+	  (values
+	   (make-instance
+	    'cartstate
+	    :r (make-vector
+		(list
+		 (* (/ r s2)
+		    (+ (cos l) (* alpha2 (cos l)) (* 2 h k (sin l))))
+		 (* (/ r s2)
+		    (+ (sin l) (- (* alpha2 (sin l))) (* 2 h k (cos l))))
+		 (* (/ (* 2 r) s2)
+		    (- (* h (sin l)) (* k (cos l)))))
+		basis)
+	    :v (make-vector
+		(list
+		 (* (/ -1 s2)
+		    (sqrt (/ mu p))
+		    (+ (sin l)
+		       (* alpha2 (sin l))
+		       (* -2 h k (cos l))
+		       g
+		       (* -2 f h k)
+		       (* alpha2 g)))
+		 (* (/ -1 s2)
+		    (sqrt (/ mu p))
+		    (+ (- (cos l))
+		       (* alpha2 (cos l))
+		       (* 2 h k (sin l))
+		       (- f)
+		       (* 2 g h k)
+		       (* alpha2 f)))
+		 (* (/ 2 s2)
+		    (sqrt (/ mu p))
+		    (+ (* h (cos l))
+		       (* k (sin l))
+		       (* f h)
+		       (* g k))))
+		basis))
+	   tm))))))
 
 (defmethod to-coe ((x meestate) tm sc)
   "Classical orbital element state from modified equinoctial"
@@ -658,33 +684,34 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 (defmethod eom (tm (x meestate) &optional sc)
   "Modified equinoctial orbital elements equations of motion"
   (with-slots (p f g h k l) x
-    (with-slots (mu basis accfun) sc
-      (with-slots (r v) (to-cartesian x tm sc)
-	(let* ((rvbasis (rvbasis r v))
-	       (fv (funcall accfun tm x sc))
-	       (fr (scalar (*i fv (first rvbasis))))
-	       (ft (scalar (*i fv (second basis))))
-	       (fn (scalar (*i fv (third basis))))
-	       (w (+ 1 (* f (cos l)) (* g (sin l))))
-	       (s2 (+ 1 (expt h 2) (expt k 2))))
-	  (make-instance
-	   'meestate
-	   :p (* 2 p (/ w) (sqrt (/ p mu)) ft)
-	   :f (* (sqrt (/ p mu))
-		 (+ (* fr (sin l))
-		    (* (+ (* (+ w 1) (cos l)) f) (/ ft w))
-		    (* (- (* k (cos l)) (* h (sin l))) g fn (/ w))))
-	   :g (* (sqrt (/ p mu))
-		 (+ (- (* fr (cos l)))
-		    (* (+ (* (+ w 1) (sin l)) g) (/ ft w))
-		    (- (* (- (* h (sin l)) (* k (cos l))) (/ (* g fn) w)))))
-	   :h (* (sqrt (/ p mu))
-		 s2 fn (cos l) (/ (* 2 w)))
-	   :k (* (sqrt (/ p mu))
-		 s2 fn (sin l) (/ (* 2 w)))
-	   :l (+ (* (sqrt (* mu p)) (expt (/ w p) 2))
-		 (* (/ w) (sqrt (/ p mu)) (- (* h (sin l)) (* k (cos l))) fn))
-	   ))))))
+    (with-slots (cb basis accfun) sc
+      (with-slots (mu) cb
+	(with-slots (r v) (to-cartesian x tm sc)
+	  (let* ((rvbasis (rvbasis r v))
+		 (fv (funcall accfun tm x sc))
+		 (fr (scalar (*i fv (first rvbasis))))
+		 (ft (scalar (*i fv (second basis))))
+		 (fn (scalar (*i fv (third basis))))
+		 (w (+ 1 (* f (cos l)) (* g (sin l))))
+		 (s2 (+ 1 (expt h 2) (expt k 2))))
+	    (make-instance
+	     'meestate
+	     :p (* 2 p (/ w) (sqrt (/ p mu)) ft)
+	     :f (* (sqrt (/ p mu))
+		   (+ (* fr (sin l))
+		      (* (+ (* (+ w 1) (cos l)) f) (/ ft w))
+		      (* (- (* k (cos l)) (* h (sin l))) g fn (/ w))))
+	     :g (* (sqrt (/ p mu))
+		   (+ (- (* fr (cos l)))
+		      (* (+ (* (+ w 1) (sin l)) g) (/ ft w))
+		      (- (* (- (* h (sin l)) (* k (cos l))) (/ (* g fn) w)))))
+	     :h (* (sqrt (/ p mu))
+		   s2 fn (cos l) (/ (* 2 w)))
+	     :k (* (sqrt (/ p mu))
+		   s2 fn (sin l) (/ (* 2 w)))
+	     :l (+ (* (sqrt (* mu p)) (expt (/ w p) 2))
+		   (* (/ w) (sqrt (/ p mu)) (- (* h (sin l)) (* k (cos l))) fn))
+	     )))))))
 
 ;;; 2D examples
 
