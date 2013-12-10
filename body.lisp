@@ -20,6 +20,14 @@
        :documentation "Ephemeris of body's orbit")
    (basis :initarg :basis :initform (list (ve2 :e1 1) (ve2 :e2 1)) :documentation "Basis in which multivectors defined")))
 
+(let ((slots '(eom cb mu ls x0 basis)))
+  (defmethod print-object ((b body) s)
+    (format s "#<BODY ~{~a~^~%~}>"
+	    (loop for slot in slots
+	       for v = (slot-value b slot)
+	       when v
+	       collect (format nil ":~a ~a" slot v)))))
+
 (defmethod eom (s (x bodystate) &optional body)
   (with-slots (x0 muc) body
     (with-slots (u duds tm) (to-spinor x0 s body)
@@ -37,22 +45,25 @@
    :basis *j2000*))
 
 (defparameter *earth*
-  (let ((b (make-instance
-	    'body
-	    :cb *sun*
-	    :mu 398600.440 ; km^3/s^2
-	    :ls 0
-	    :basis *j2000*)))
-    (setf (slot-value b 'x0)
-	  (to-ks
-	   (make-instance
-	    'cartstate
-	    :r (ve3 :e1 3.358497373728686E+07 :e2 1.431508445244126E+08 :e3 -1.825726859413210E+04)
-	    :v (ve3 :e1 -2.948987304368306E+01 :e2 6.645626180478944E+00 :e3 1.289207633035708E-04))
-	   0 b))
-    b))
+  (make-instance
+   'body
+   :cb *sun*
+   :mu 398600.440 ; km^3/s^2
+   :ls 0
+   :basis *j2000*
+   :x0 (let* ((xc (make-instance
+		   'cartstate
+		   :r (ve3 :e1 3.358497373728686d07 :e2 1.431508445244126d08 :e3 -1.825726859413210d04)
+		   :v (ve3 :e1 -2.948987304368306d01 :e2 6.645626180478944d00 :e3 1.289207633035708d-04)))
+	      (b (make-instance 'body :cb *sun* :basis *j2000* :x0 xc)))
+	 (to-ks xc 0 b))))
 
-(defun body-position (tm b)
-  (with-slots (x0) b
-    (with-slots ((alpha0 alpha) (beta0 beta) (e0 e) (tm0 tm)) x0
-      
+  #|
+(defun body-position (b tm)
+  (with-slots (x0 cb) b
+    (if cb
+	(with-slots (mu) cb
+	  (with-slots (a e) (to-coe x0 tm b)
+	    (let* ((n (sqrt (/ mu (expt a 3))))
+		   (m ( *
+|#
