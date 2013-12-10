@@ -95,11 +95,12 @@ Includes:
 
 (defmethod sail-ideal-acc (s x sc)
   (with-slots (r v) (to-cartesian x s sc)
-    (with-slots (lightness mu pointfun) sc
-      (let ((n (funcall pointfun s x sc)))
-	(* lightness mu (/ (norme2 r))
-	   (expt (scalar (*i (unitg r) n)) 2)
-	   n)))))
+    (with-slots (lightness cb pointfun) sc
+      (with-slots (mu) cb
+	(let ((n (funcall pointfun s x sc)))
+	  (* lightness mu (/ (norme2 r))
+	     (expt (scalar (*i (unitg r) n)) 2)
+	     n))))))
 
 ;;; Pointing functions
 

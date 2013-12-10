@@ -5,6 +5,11 @@
 (defclass bodystate ()
   ((tm :initarg :tm :initform 0 :documentation "Time")))
 
+(defmethod print-object ((x bodystate) s)
+  (format s "#<BODYSTATE :TM ~a>" (slot-value x 'tm)))
+
+(defstatearithmetic bodystate (tm))
+
 (defclass body ()
   ((eom :initarg :eom :initform #'eom :documentation "Equations of motion")
    (cb :initarg :cb :documentation "Central body")
@@ -19,10 +24,8 @@
   (with-slots (x0 muc) body
     (with-slots (u duds tm) (to-spinor x0 s body)
       (make-instance
-       'body-state
-       :tm r))))
-
-(defgeneric position (
+       'bodystate
+       :tm (norme2 u)))))
 
 (defparameter *sun*
   (make-instance
@@ -48,4 +51,8 @@
 	    :v (ve3 :e1 -2.948987304368306E+01 :e2 6.645626180478944E+00 :e3 1.289207633035708E-04))
 	   0 b))
     b))
-	 
+
+(defun body-position (tm b)
+  (with-slots (x0) b
+    (with-slots ((alpha0 alpha) (beta0 beta) (e0 e) (tm0 tm)) x0
+      
