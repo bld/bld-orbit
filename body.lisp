@@ -24,9 +24,7 @@
   (defmethod print-object ((b body) s)
     (format s "#<BODY ~{~a~^~%~}>"
 	    (loop for slot in slots
-	       for v = (slot-value b slot)
-	       when v
-	       collect (format nil ":~a ~a" slot v)))))
+	       collect (format nil ":~a ~a" slot (slot-value b slot))))))
 
 (defmethod eom (s (x bodystate) &optional body)
   (with-slots (x0 muc) body
@@ -67,3 +65,31 @@
 	    (let* ((n (sqrt (/ mu (expt a 3))))
 		   (m ( *
 |#
+
+(defclass planet ()
+  ((sma :initarg :sma)
+   (ecc :initarg :ecc)
+   (inc :initarg :inc)
+   (mlon :initarg :mlon)
+   (lper :initarg :lper)
+   (lan :initarg :lan)
+   (dsma :initarg :dsma)
+   (decc :initarg :decc)
+   (dinc :initarg :dinc)
+   (dmlon :initarg :dmlon)
+   (dlper :initarg :dlper)
+   (dlan :initarg :dlan)
+   (jd :initarg :jd)
+   (mu :initarg :mu)))
+
+(defparameter *earth-bary*
+  (make-instance
+   'planet
+   :sma 1.00000018 :dsma -0.00000003
+   :ecc 0.01673163 :decc -0.00003661
+   :inc -0.00054346 :dinc -0.01337178
+   :mlon 100.46691572 :dmlon 35999.37306329
+   :lper 102.93005885 :dlper 0.31795260
+   :lan -5.11260389 :dlan -0.24123856
+   :jd 2451545d0
+   :mu 398600.440)) ; km^3/s^2
