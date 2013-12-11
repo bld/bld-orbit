@@ -139,3 +139,9 @@
       ;;(make-vector orb-coefs b-aop)
       )))
 
+(defmethod position-vector ((b body) teph &key (tol 1d-6))
+  (with-slots (mu x0) b
+    (with-slots (e) x0
+      (let* ((a (- (/ mu 2 e)))
+	     (n (sqrt (/ mu (expt a 3))))
+	     (ecc 
