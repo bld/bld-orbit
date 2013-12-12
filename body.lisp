@@ -17,27 +17,32 @@
 (defstatearithmetic bodystate (tm))
 
 (defclass body ()
-  ((eom :initarg :eom :initform #'eom :documentation "Equations of motion")
-   (cb :initarg :cb :documentation "Central body")
+  ((cb :initarg :cb :documentation "Central body")
    (mu :initarg :mu :initform 1 :documentation "Gravitational parameter of body")
    (ls :initarg :ls :initform 0 :documentation "Luminosity of body")
    (x0 :initarg :x0 :initform
        (make-instance 'ksstate :tm 0 :e -0.5 :alpha (re2 :s 1) :beta (re2 :e1e2 -1))
        :documentation "Ephemeris of body's orbit")
-   (basis :initarg :basis :initform (list (ve2 :e1 1) (ve2 :e2 1)) :documentation "Basis in which multivectors defined")))
+   (basis :initarg :basis :initform (list (ve2 :e1 1) (ve2 :e2 1)) :documentation "Basis in which multivectors defined")
+   (sma :documentation "Semi-major axis")
+   (ecc :documentation "Eccentricity")
+   (n :documentation "Mean motion")))
 
-(let ((slots '(eom cb mu ls x0 basis)))
+#+null(defmethod initialize-instance :after ((b body) &key)
+  "Initialize semi-major axis, eccentricity, and mean motion"
+  (with-slots (x0 cb sma ecc n) b
+    (with-slots (mu) cb
+      (with-slots (r v) (to-cartesian x0 0 b)
+	(setf sma (- (/ mu 2 e)))
+	(setf ecc (norme (eccv-rv r v mu)))
+	(setf n (sqrt (/ mu (expt a 3))))))))
+
+(let ((slots '(cb mu ls x0 basis sma ecc n)))
   (defmethod print-object ((b body) s)
     (format s "#<BODY ~{~a~^~%~}>"
 	    (loop for slot in slots
+	       when (slot-boundp b slot)
 	       collect (format nil ":~a ~a" slot (slot-value b slot))))))
-
-(defmethod eom (s (x bodystate) &optional body)
-  (with-slots (x0 muc) body
-    (with-slots (u duds tm) (to-spinor x0 s body)
-      (make-instance
-       'bodystate
-       :tm (norme2 u)))))
 
 (defparameter *sun*
   (make-instance
@@ -139,9 +144,71 @@
       ;;(make-vector orb-coefs b-aop)
       )))
 
-(defmethod position-vector ((b body) teph &key (tol 1d-6))
-  (with-slots (mu x0) b
-    (with-slots (e) x0
-      (let* ((a (- (/ mu 2 e)))
-	     (n (sqrt (/ mu (expt a 3))))
-	     (ecc 
+(defclass body2 ()
+  ((cb :initarg :cb :documentation "Central body")
+   (mu :initarg :mu :documentation "Gravitational parameter")
+   (basis :initarg :basis :documentation "Basis of body's orbit")
+   (jd :initarg :jd :documentation "Julian date of ephemeris")
+   (ec :initarg :ec :documentation "Eccentricity")
+   (qr :initarg :qr :documentation "Periapsis distance")
+   (in :initarg :in :documentation "Inclination")
+   (om :initarg :om :documentation "Longitude of ascending node")
+   (w :initarg :w :documentation "Argument of perifocus")
+   (tp :initarg :tp :documentation "Time of periapsis passage")
+   (n :initarg :n :documentation "Mean motion")
+   (ma :initarg :ma :documentation "Mean anomaly")
+   (ta :initarg :ta :documentation "True anomaly")
+   (a :initarg :a :documentation "Semi-major axis")
+   (ad :initarg :ad :documentation "Apoapsis distance")
+   (pr :initarg :pr :documentation "Orbital period")
+   (xcoe :documentation "COE initial state")
+   (xcart :documentation "Cartesian initial state")
+   (xspin :documentation "Spinor initial state")
+   (xks :documentation "KS initial state")
+   (x0)))
+
+(defmethod initialize-instance :after ((b body2) &key)
+  (with-slots (cb mu jd ec qr in om w tp n ma ta a ad pr xcoe xcart xspin xks x0) b
+    (setf xcoe (make-instance
+		'coestate
+		:a a
+		:e ec
+		:i (rad in)
+		:lan (rad om)
+		:aop (rad w)
+		:tm jd))
+    (setf xcart (to-cartesian xcoe 0 b))
+    (setf xspin (to-spinor xcart tp b))
+    (setf x0 xspin)
+    (setf xks (to-ks xspin 0 b))))
+
+(defparameter *earth2*
+  (make-instance
+   'body2
+   :cb *sun*
+   :mu 398600.440d0 ; km^3/s^2
+   :basis *j2000*
+   :jd 2456636.500000000d0 ; JD
+   :ec 1.684979972975590d-02
+   :qr 1.470762977800374d+08 ; km
+   :in 2.343771100691132d+01 ; deg
+   :om 3.744562484559023d-03 ; deg
+   :w 1.041643049861283d+02 ; deg
+   :tp 2456662.302288666368 ; JD
+   :n 1.140761553291031d-05 ; deg/s
+   :ma 3.345688003126187d+02 ; deg
+   :ta 3.337236095002035d+02 ; deg
+   :a 1.495969768806534d+08 ; km
+   :ad 1.521176559812693d+08 ; km
+   :pr 3.155786579249809d+07)) ; s
+
+(defmethod position-velocity ((b body2) teph)
+  (with-slots (cb mu basis jd ec qr in om w tp n ma ta a ad pr xks) b
+    (with-slots (alpha beta e tm) xks
+      (let* ((teph-jd (universal-to-julian-date teph))
+	     (t-jd (- teph-jd jd))
+	     (m (+ ma (* t-jd n 60d0 60d0 24d0)))
+	     (ea (solve-kepler m (deg ec)))
+	     (w0 (sqrt (/ (- e) 2)))
+	     (s (/ (rad ea) 2 w0)))
+	(to-cartesian xks s b)))))
