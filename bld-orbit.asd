@@ -8,5 +8,5 @@
   :components
   ((:file "package")
    (:file "orbit")
-   (:file "body")))
-
+   (:file "body")
+   (:file "examples")))

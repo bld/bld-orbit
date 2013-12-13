@@ -11,17 +11,13 @@ Includes:
 
 (in-package :bld-orbit)
 
-(defparameter *au* 149597870691d0 "Astronomical unit (m)")
+(defparameter *au* 1.49597870691d8 "Astronomical unit (km)")
 
-(defparameter *c* 299792458d0 "Speed of light (m/s)")
-
-(defvar *lsun* 1361.7913d0 "Solar luminosity at 1 AU (W/m^2)")
+(defparameter *c* 299792.458d0 "Speed of light (km/s)")
 
 (defparameter *J2000* (list (ve3 :e1 1d0)
 			    (ve3 :e2 1d0)
 			    (ve3 :e3 1d0)) "J2000 inertial frame")
-
-(defparameter *musun* 1.32712440018d20 "Solar gravitational parameter, m^3/s^2")
 
 ;;; Utility functions
 
@@ -84,16 +80,25 @@ Includes:
        (list x y (dual h)))
       (t (error "R and V must be 2 or 3 dimensional")))))
 
+(defun orbit-frame (rsun basis)
+  "Produce orbit frame from vector to sun"
+  (let* ((o3 (unitg rsun))
+	 (o1 (unitg (*i (third basis) (dual o3))))
+	 (o2 (*i o3 (dual o1))))
+    (list o1 o2 o3)))
+
 ;;; Acceleration functions
+
+(defun solar-pressure (rm b)
+  "Inverse square solar pressure as function of radius from body and body object"
+  (/ (* (slot-value b 'ls) (expt (/ *au* rm) 2)) *c*))
 
 (defun gravity (s r mu)
   "Gravitational acceleration"
   (- (* (/ mu (norme2 r)) (unitg r))))
 
-(defgeneric sail-ideal-acc (s x sc)
-  (:documentation "Ideal solar sail acceleration"))
-
-(defmethod sail-ideal-acc (s x sc)
+(defun sail-ideal-acc (s x sc)
+  "Ideal solar sail acceleration"
   (with-slots (r v) (to-cartesian x s sc)
     (with-slots (lightness cb pointfun) sc
       (with-slots (mu) cb
@@ -102,32 +107,62 @@ Includes:
 	     (expt (scalar (*i (unitg r) n)) 2)
 	     n))))))
 
+(defun sail-flat-optical-acc (s x sail)
+  "Flat plate sail with optical properties from 'Propulsive Reflectivity and Photoflexibility' by Derbes and Lichodziejewski (AIAA 2006-4520)"
+  (with-slots (r v) (to-cartesian x s sc)
+    (with-slots (area mass optical pointfun cb) sc
+      (with-slots (reft refp refp-0 thetap-25 ef eb bf bb) optical
+	(let* ((rsun (- r))
+	       (sframe (funcall pointfun s x sc))
+	       (n (first sframe))
+	       (rm (norme r))
+	       (nt (- (*x u n n)))
+	       (p (solar-pressure rm cb)))
+	  )))))
+  
+
 ;;; Pointing functions
 
-(defgeneric sail-pointing-normal (s x sc)
-  (:documentation "Sail pointing straight at the central body"))
-
-(defmethod sail-pointing-normal (s x sc)
+(defun sail-pointing-normal (s x sc)
+  "Return sail normal vector from unit sun vector"
   (unitg (slot-value (to-cartesian x s sc) 'r)))
 
-(defgeneric sail-pointing-fixed (s x sc)
-  (:documentation "Sail pointing at fixed attitude relative to orbit frame"))
-
-(defmethod sail-pointing-fixed (s x sc)
+(defun sail-pointing-fixed (s x sc)
+  "Return sail normal vector from fixed RVBASIS rotor RS"
   (with-slots (r v) (to-cartesian x s sc)
     (with-slots (rs basis) sc
       (let* ((rvbasis (rvbasis r v))
 	     (rvr (recoverrotor rvbasis basis))
 	     (rsrv (*g rvr rs)))
-	(rotateg (first basis) (*g rvr rs))))))
+	(rotateg (first basis) rsrv)))))
 
-(defmethod sail-pointing-table (s x sc)
+(defun sail-frame-fixed (s x sc)
+  "Return sail frame (and rotor) from fixed RVBASIS rotor RS"
+  (with-slots (r v) (to-cartesian x s sc)
+    (with-slots (rs basis) sc
+      (let* ((rvbasis (rvbasis r v))
+	     (rvr (recoverrotor rvbasis basis))
+	     (rsrv (*g rvr rs)))
+	(values (new-frame rsrv basis) rsrv)))))
+  
+(defun sail-pointing-table (s x sc)
+  "Return sail normal vector from lookup table of RVBASIS rotors RS"
   (with-slots (r v) (to-cartesian x s sc)
     (with-slots (rs basis) sc
       (let* ((rvbasis (rvbasis r v))
 	     (rvr (recoverrotor rvbasis basis))
 	     (rsi (second (find s rs :test #'<= :key #'first))))
 	(rotateg (first basis) (*g rvr rsi))))))
+
+(defun sail-frame-table (s x sc)
+  "Return sail frame from lookup table of RVBASIS rotors RS"
+  (with-slots (r v) (to-cartesian x s sc)
+    (with-slots (rs basis) sc
+      (let* ((rvbasis (rvbasis r v))
+	     (rvr (recoverrotor rvbasis basis))
+	     (rsi (second (find s rs :test #'<= :key #'first)))
+	     (rsframe (*g rvr rsi)))
+	(values (new-frame rsail rsframe) rsframe)))))
 
 ;;; State classes 
 
@@ -160,14 +195,28 @@ Includes:
        :documentation "Ephemeris of body's orbit")
    (basis :initarg :basis :initform (list (ve2 :e1 1) (ve2 :e2 1)) :documentation "Basis in which multivectors defined")))
 
-;;; Sail class
+;;; Sail classes
+
+(defclass sail-optical-properties ()
+  ((reft :initarg :reft)
+   (refp :initarg :refp)
+   (refp-0 :initarg :refp-0)
+   (thetap-25 :initarg :thetap-25)
+   (ef :initarg :ef)
+   (eb :initarg :eb)
+   (bf :initarg :bf)
+   (bb :initarg :bb)))
 
 (defclass sail ()
   ((eom :initarg :eom :initform #'eom :documentation "Equations of motion")
    (cb :initarg :cb :initform (make-instance 'body :mu 1d0) :documentation "Central body")
+   (nbodies :initarg :nbodies :documentation "Additional bodies with gravitational/solar influence")
    (accfun :initarg :accfun :initform #'sail-ideal-acc :documentation "Sail acceleration function")
    (pointfun :initarg :pointfun :initform #'sail-pointing-fixed :documentation "Sail pointing function")
-   (lightness :initarg :lightness :initform 0d0 :documentation "Ratio of solar to gravitational acceleration")
+   (lightness :initarg :lightness :initform 0)
+   (mass :initarg :mass)
+   (area :initarg :area)
+   (optical :initarg :optical)
    (basis :initarg :basis :initform (list (ve2 :e1 1) (ve2 :e2 1)))
    (t0 :initarg :t0 :initform 0d0 :documentation "Initial time")
    (tf :initarg :tf :initform (* 2 pi) :documentation "Final time")
@@ -218,7 +267,7 @@ Includes:
 (defmethod eom (tm (x cartstate) &optional sc)
   "Solar sail cartesian equations of motion"
   (with-slots (r v) x
-    (with-slots (lightness cb accfun) sc
+    (with-slots (cb accfun) sc
       (with-slots (mu) cb
 	(make-instance
 	 'cartstate
@@ -714,354 +763,3 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 		   (* (/ w) (sqrt (/ p mu)) (- (* h (sin l)) (* k (cos l))) fn))
 	     )))))))
 
-;;; 2D examples
-
-;; 2D Kepler examples
-
-(defparameter *sail-2d-kepler-examples*
-  (make-hash*
-   :cart (make-instance 'sail)
-   :spin (with-slots (x0) cart
-	   (make-instance
-	    'sail
-	    :tf (* 2 pi)
-	    :x0 (to-spinor x0 0 cart)
-	    :outfile "sail-2d-spin-kepler-eg.dat"))
-   :ks (with-slots (x0) cart
-	 (make-instance
-	  'sail
-	  :tf (* 2 pi)
-	  :x0 (to-ks x0 0 cart)
-	  :outfile "sail-2d-ks-kepler-eg.dat"))))
-
-;; 2D normal examples
-
-(defparameter *sail-2d-normal-examples*
-  (make-hash*
-   :cart (make-instance
-	  'sail
-	  :tf (* 4 pi)
-	  :pointfun #'sail-pointing-normal
-	  :lightness 0.1d0
-	  :outfile "sail-2d-cart-normal-eg.dat")
-   :spin (with-slots (x0 pointfun lightness) cart
-	   (make-instance
-	    'sail
-	    :tf (* 4 pi)
-	    :pointfun pointfun
-	    :lightness lightness
-	    :x0 (to-spinor x0 0 cart)
-	    :outfile "sail-2d-spin-normal-eg.dat"))
-   :ks (with-slots (x0 pointfun lightness) cart
-	 (make-instance
-	  'sail
-	  :tf (* 8 pi)
-	  :pointfun #'sail-pointing-normal
-	  :lightness 0.1d0
-	  :x0 (to-ks x0 0 cart)
-	  :outfile "sail-2d-ks-normal-eg.dat"))))
-
-;; 2D fixed examples
-
-(defparameter *sail-2d-fixed-examples*
-  (make-hash*
-   :cart (make-instance
-	  'sail
-	  :accfun #'sail-ideal-acc
-	  :pointfun #'sail-pointing-fixed
-	  :lightness 0.1
-	  :tf (* 4 pi)
-	  :rs (rotor (bve2 :e1e2 1) (atan (/ (sqrt 2))))
-	  :outfile "sail-2d-cart-fixed-eg.dat")
-   :spin (with-slots (pointfun lightness x0 rs) cart
-	   (make-instance
-	    'sail
-	    :tf (* 4 pi)
-	    :pointfun pointfun
-	    :lightness lightness
-	    :x0 (to-spinor x0 0 cart)
-	    :rs rs
-	    :outfile "sail-2d-spin-fixed-eg.dat"))
-   :ks (with-slots (pointfun lightness x0 rs) cart
-	 (make-instance
-	  'sail
-	  :tf (* 4 pi)
-	  :pointfun pointfun
-	  :lightness lightness
-	  :x0 (to-ks x0 0 cart)
-	  :rs rs
-	  :outfile "sail-2d-ks-fixed-eg.dat"))))
-
-;; 2D table examples
-
-(defparameter *sail-2d-table-examples*
-  (make-hash*
-   :cart (make-instance
-	  'sail
-	  :lightness 0.1
-	  :tf (* 4 pi)
-	  :pointfun #'sail-pointing-table
-	  :rs (list (list (* 2 pi) (rotor (bve2 :e1e2 1) (/ pi 2)))
-		    (list (* 4 pi) (rotor (bve2 :e1e2 1) (atan (/ (sqrt 2))))))
-	  :outfile "sail-2d-cart-table-eg.dat")
-   :spin (with-slots (pointfun lightness x0 rs) cart
-	   (make-instance
-	    'sail
-	    :tf (* 4 pi)
-	    :pointfun pointfun
-	    :lightness lightness
-	    :x0 (to-spinor x0 0 cart)
-	    :rs rs
-	    :outfile "sail-2d-spin-table-eg.dat"))
-   :ks (with-slots (pointfun lightness x0 rs) cart
-	 (make-instance
-	  'sail
-	  :tf (* 4 pi)
-	  :pointfun pointfun
-	  :lightness lightness
-	  :x0 (to-ks x0 0 cart)
-	  :rs rs
-	  :outfile "sail-2d-ks-table-eg.dat"))))
-
-;;; 3D examples
-
-;; 3D Kepler examples
-
-(defparameter *sail-3d-kepler-examples*
-  (make-hash*
-   :coe (make-instance
-	 'sail
-	 :tf (* 4 pi)
-	 :accfun #'(lambda (s x sc) (ve3))
-	 :lightness 0d0
-	 :x0 (make-instance
-	      'coestate
-	      :a 1.1
-	      :e 0.1
-	      :i 0.1
-	      :lan 0.1
-	      :aop 0.1
-	      :tm 0)
-	 :basis *j2000*
-	 :rs (re3 :s 1)
-	 :outfile "sail-3d-coe-kepler-eg.dat")
-   :cart (with-slots (tf accfun lightness x0 basis rs) coe
-	   (make-instance
-	    'sail
-	    :tf tf
-	    :accfun accfun
-	    :lightness lightness
-	    :x0 (to-cartesian x0 0 coe)
-	    :basis basis
-	    :rs rs
-	    :outfile "sail-3d-cart-kepler-eg.dat"))
-   :spin (with-slots (tf accfun lightness x0 basis rs) coe
-	   (make-instance
-	    'sail
-	    :tf tf
-	    :accfun accfun
-	    :lightness lightness
-	    :x0 (to-spinor x0 0 coe)
-	    :basis basis
-	    :rs rs
-	    :outfile "sail-3d-spin-kepler-eg.dat"))
-   :ks (with-slots (tf accfun lightness x0 basis rs) coe
-	 (make-instance
-	  'sail
-	  :tf tf
-	  :accfun accfun
-	  :lightness lightness
-	  :x0 (to-ks x0 0 coe)
-	  :basis basis
-	  :rs rs
-	  :outfile "sail-3d-ks-kepler-eg.dat"))
-   :mee (with-slots (tf accfun lightness x0 basis rs) coe
-	  (make-instance
-	   'sail
-	   :tf tf
-	   :accfun accfun
-	   :lightness lightness
-	   :x0 (to-mee x0 0 coe)
-	   :basis basis
-	   :rs rs
-	   :outfile "sail-3d-mee-kepler-eg.dat"))))
-
-;; 3D sail normal examples
-
-(defparameter *sail-3d-normal-examples*
-  (make-hash*
-   :coe (make-instance
-	 'sail
-	 :tf (* 4 pi)
-	 :pointfun #'sail-pointing-normal
-	 :lightness 0.1d0
-	 :x0 (make-instance
-	      'coestate
-	      :a 1.1
-	      :e 0.1
-	      :i 0.1
-	      :lan 0.1
-	      :aop 0.1
-	      :tm 0)
-	 :basis *j2000*
-	 :outfile "sail-3d-coe-normal-eg.dat")
-   :cart (with-slots (tf pointfun lightness x0 basis) coe
-	   (make-instance
-	    'sail
-	    :tf tf
-	    :pointfun pointfun
-	    :lightness lightness
-	    :x0 (to-cartesian x0 0 coe)
-	    :basis basis
-	    :outfile "sail-3d-cart-normal-eg.dat"))
-   :spin (with-slots (tf pointfun lightness x0 basis) coe
-	   (make-instance
-	    'sail
-	    :tf tf
-	    :pointfun pointfun
-	    :lightness lightness
-	    :x0 (to-spinor x0 0 coe)
-	    :basis basis
-	    :outfile "sail-3d-spin-normal-eg.dat"))
-   :ks (with-slots (tf pointfun lightness x0 basis) coe
-	 (make-instance
-	  'sail
-	  :tf tf
-	  :pointfun pointfun
-	  :lightness lightness
-	  :x0 (to-ks x0 0 coe)
-	  :basis basis
-	  :outfile "sail-3d-ks-normal-eg.dat"))
-   :mee (with-slots (tf pointfun lightness x0 basis) coe
-	  (make-instance
-	   'sail
-	   :tf tf
-	   :pointfun pointfun
-	   :lightness lightness
-	   :x0 (to-mee x0 0 coe)
-	   :basis basis
-	   :outfile "sail-3d-mee-normal-eg.dat"))))
-
-;; 3D sail fixed examples
-
-(defparameter *sail-3d-fixed-examples*
-  (make-hash*
-   :coe (make-instance
-	 'sail
-	 :tf (* 4 pi)
-	 :pointfun #'sail-pointing-fixed
-	 :lightness 0.1d0
-	 :x0 (make-instance
-	      'coestate
-	      :a 1.1
-	      :e 0.1
-	      :i 0.1
-	      :lan 0.1
-	      :aop 0.1
-	      :tm 0)
-	 :basis *j2000*
-	 :rs (rotor (bve3 :e1e2 1) (atan (/ (sqrt 2))))
-	 :outfile "sail-3d-coe-fixed-eg.dat")
-   :cart (with-slots (tf pointfun lightness x0 basis rs) coe
-	   (make-instance
-	    'sail
-	    :tf tf
-	    :pointfun pointfun
-	    :lightness lightness
-	    :x0 (to-cartesian x0 0 coe)
-	    :basis basis
-	    :rs rs
-	    :outfile "sail-3d-cart-fixed-eg.dat"))
-   :spin (with-slots (tf pointfun lightness x0 basis rs) coe
-	   (make-instance
-	    'sail
-	    :tf tf
-	    :pointfun pointfun
-	    :lightness lightness
-	    :x0 (to-spinor x0 0 coe)
-	    :basis basis
-	    :rs rs
-	    :outfile "sail-3d-spin-fixed-eg.dat"))
-   :ks (with-slots (tf pointfun lightness x0 basis rs) coe
-	 (make-instance
-	  'sail
-	  :tf tf
-	  :pointfun pointfun
-	  :lightness lightness
-	  :x0 (to-ks x0 0 coe)
-	  :basis basis
-	  :rs rs
-	  :outfile "sail-3d-ks-fixed-eg.dat"))
-   :mee (with-slots (tf pointfun lightness x0 basis rs) coe
-	  (make-instance
-	   'sail
-	   :tf tf
-	   :pointfun pointfun
-	   :lightness lightness
-	   :x0 (to-mee x0 0 coe)
-	   :basis basis
-	   :rs rs
-	   :outfile "sail-3d-mee-fixed-eg.dat"))))
-
-;; 3D table examples
-
-(defparameter *sail-3d-table-examples*
-  (make-hash*
-   :coe (make-instance
-	 'sail
-	 :tf (* 4 pi)
-	 :pointfun #'sail-pointing-table
-	 :lightness 0.1d0
-	 :x0 (make-instance
-	      'coestate
-	      :a 1.1
-	      :e 0.1
-	      :i 0.1
-	      :lan 0.1
-	      :aop 0.1
-	      :tm 0)
-	 :basis *j2000*
-	 :rs (list (list (* 2 pi) (rotor (bve3 :e1e2 1) (atan (/ (sqrt 2)))))
-		   (list (* 4 pi) (rotor (bve3 :e1e2 1) (atan (/ (sqrt 2)))))
-		   )
-	 :outfile "sail-3d-coe-table-eg.dat")
-   :cart (with-slots (tf pointfun lightness x0 basis rs) coe
-	   (make-instance
-	    'sail
-	    :tf tf
-	    :pointfun pointfun
-	    :lightness lightness
-	    :x0 (to-cartesian x0 0 coe)
-	    :basis basis
-	    :rs rs
-	    :outfile "sail-3d-cart-table-eg.dat"))
-   :spin (with-slots (tf pointfun lightness x0 basis rs) coe
-	   (make-instance
-	    'sail
-	    :tf tf
-	    :pointfun pointfun
-	    :lightness lightness
-	    :x0 (to-spinor x0 0 coe)
-	    :basis basis
-	    :rs rs
-	    :outfile "sail-3d-spin-table-eg.dat"))
-   :ks (with-slots (tf pointfun lightness x0 basis rs) coe
-	 (make-instance
-	  'sail
-	  :tf tf
-	  :pointfun pointfun
-	  :lightness lightness
-	  :x0 (to-ks x0 0 coe)
-	  :basis basis
-	  :rs rs
-	  :outfile "sail-3d-ks-table-eg.dat"))
-   :mee (with-slots (tf pointfun lightness x0 basis rs) coe
-	  (make-instance
-	   'sail
-	   :tf tf
-	   :pointfun pointfun
-	   :lightness lightness
-	   :x0 (to-mee x0 0 coe)
-	   :basis basis
-	   :rs rs
-	   :outfile "sail-3d-mee-table-eg.dat"))))

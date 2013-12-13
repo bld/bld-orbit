@@ -31,6 +31,7 @@
 (defclass body ()
   ((cb :initarg :cb :documentation "Central body")
    (mu :initarg :mu :documentation "Gravitational parameter")
+   (ls :initarg :ls :documentation "Luminosity")
    (basis :initarg :basis :documentation "Basis of body's orbit")
    (jd :initarg :jd :documentation "Julian date of ephemeris")
    (ec :initarg :ec :documentation "Eccentricity")
@@ -90,6 +91,7 @@
    'body 
    :cb *ssb*
    :mu 1.32712440018d11
+   :ls 1361.3477d0
    :basis *j2000*
    :jd 2456636.500000000d0
    :EC 8.546770937522187d-01 :QR 2.906237974575245d+04 :IN 2.400537289551978d+00
@@ -102,7 +104,8 @@
   (make-instance
    'body
    :cb *sun*
-   :mu 398600.440d0 ; km^3/s^2
+   :mu 398600.44d0
+   :ls 0d0
    :basis *j2000*
    :jd 2456636.500000000d0
    :ec 1.391497319063767d-02
@@ -123,6 +126,7 @@
    'body
    :cb *sun*
    :mu 42828.3d0
+   :ls 0d0
    :basis *j2000*
    :jd 2456636.500000000d0
    :ec 9.656324402943112d-02
