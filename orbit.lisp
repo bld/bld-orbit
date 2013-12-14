@@ -37,6 +37,8 @@ Includes:
 
 (defgeneric energy (x sc) (:documentation "Keplerian orbit energy"))
 
+(defgeneric time-of (s x) (:documentation "Universal time"))
+
 (defgeneric eom (s x &optional param) (:documentation "Equations of motion given independent variable S & state X"))
 
 (defgeneric to-cartesian (x s sc) (:documentation "Convert a state to cartesian state"))
@@ -107,20 +109,6 @@ Includes:
 	     (expt (scalar (*i (unitg r) n)) 2)
 	     n))))))
 
-(defun sail-flat-optical-acc (s x sail)
-  "Flat plate sail with optical properties from 'Propulsive Reflectivity and Photoflexibility' by Derbes and Lichodziejewski (AIAA 2006-4520)"
-  (with-slots (r v) (to-cartesian x s sc)
-    (with-slots (area mass optical pointfun cb) sc
-      (with-slots (reft refp refp-0 thetap-25 ef eb bf bb) optical
-	(let* ((rsun (- r))
-	       (sframe (funcall pointfun s x sc))
-	       (n (first sframe))
-	       (rm (norme r))
-	       (nt (- (*x u n n)))
-	       (p (solar-pressure rm cb)))
-	  )))))
-  
-
 ;;; Pointing functions
 
 (defun sail-pointing-normal (s x sc)
@@ -164,48 +152,11 @@ Includes:
 	     (rsframe (*g rvr rsi)))
 	(values (new-frame rsail rsframe) rsframe)))))
 
-;;; State classes 
-
 ;; Kustaanheimo-Stiefel
 
-(defclass ksstate ()
-  ((alpha :initarg :alpha :documentation "U at s=0")
-   (beta :initarg :beta :documentation "dU/ds / w0 at s=0")
-   (e :initarg :e :documentation "Keplerian specific orbital energy")
-   (tm :initarg :tm :documentation "Time"))
-  (:documentation "Kustaanheimo-Stiefel orbital element state"))
-
-(let ((slots '(alpha beta e tm)))
-  (defmethod print-object ((x ksstate) s)
-    (format s "#<KSSTATE ~{~a~^ ~}>"
-	    (loop for slot in slots
-	       collect (format nil ":~a ~a" slot (slot-value x slot))))))
-
-(defstatearithmetic ksstate (alpha beta e tm))
-
-;;; Body class
-
-(defclass body ()
-  ((eom :initarg :eom :initform #'eom :documentation "Equations of motion")
-   (cb :initarg :cb :documentation "Central body")
-   (mu :initarg :mu :initform 1 :documentation "Gravitational parameter of body")
-   (ls :initarg :ls :initform 0 :documentation "Luminosity of body")
-   (x0 :initarg :x0 :initform
-       (make-instance 'ksstate :tm 0 :e -0.5 :alpha (re2 :s 1) :beta (re2 :e1e2 -1))
-       :documentation "Ephemeris of body's orbit")
-   (basis :initarg :basis :initform (list (ve2 :e1 1) (ve2 :e2 1)) :documentation "Basis in which multivectors defined")))
 
 ;;; Sail classes
 
-(defclass sail-optical-properties ()
-  ((reft :initarg :reft)
-   (refp :initarg :refp)
-   (refp-0 :initarg :refp-0)
-   (thetap-25 :initarg :thetap-25)
-   (ef :initarg :ef)
-   (eb :initarg :eb)
-   (bf :initarg :bf)
-   (bb :initarg :bb)))
 
 (defclass sail ()
   ((eom :initarg :eom :initform #'eom :documentation "Equations of motion")
@@ -264,6 +215,9 @@ Includes:
       (with-slots (r v) x
 	(- (/ (scalar (exptg v 2)) 2) (/ mu (norme r)))))))
 
+(defmethod time-of (s (x cartstate))
+  s)
+
 (defmethod eom (tm (x cartstate) &optional sc)
   "Solar sail cartesian equations of motion"
   (with-slots (r v) x
@@ -297,6 +251,9 @@ Includes:
     (with-slots (cb) sc
       (with-slots (mu) cb
 	(/ (- (* 2 (norme2 duds)) mu) (norme2 u))))))
+
+(defmethod time-of (s (x spinorstate))
+  (slot-value x 'tm))
 
 (defmethod eom (s (x spinorstate) &optional sc)
   "Spinor equations of motion: 2 dU/ds - E U = f r U, dt/ds = |r|"
@@ -346,6 +303,21 @@ Includes:
     (to-spinor xc tm sc)))
 
 ;;; Kustaanheimo-Stiefel Orbit Element equations of motion
+
+(defclass ksstate ()
+  ((alpha :initarg :alpha :documentation "U at s=0")
+   (beta :initarg :beta :documentation "dU/ds / w0 at s=0")
+   (e :initarg :e :documentation "Keplerian specific orbital energy")
+   (tm :initarg :tm :documentation "Time"))
+  (:documentation "Kustaanheimo-Stiefel orbital element state"))
+
+(let ((slots '(alpha beta e tm)))
+  (defmethod print-object ((x ksstate) s)
+    (format s "#<KSSTATE ~{~a~^ ~}>"
+	    (loop for slot in slots
+	       collect (format nil ":~a ~a" slot (slot-value x slot))))))
+
+(defstatearithmetic ksstate (alpha beta e tm))
 
 (defmethod eom (s (x ksstate) &optional sc)
   "Kustaanheimo-Stiefel orbit element equations of motion from Arakida and Fukushima"
@@ -399,6 +371,9 @@ Includes:
 
 (defmethod energy ((x ksstate) sc)
   (slot-value x 'e))
+
+(defmethod time-of (s (x ksstate))
+  (slot-value x 'tm))
 
 (defmethod to-ks ((x spinorstate) s sc)
   "Convert spinor state to KS"
