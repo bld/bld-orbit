@@ -352,4 +352,31 @@
 	   :rs rs
 	   :outfile "sail-3d-mee-table-eg.dat"))))
 
-;;; 
+;;; GEO examples
+
+(defparameter *sail-3d-eom2-examples*
+  (make-hash*
+   :cart-kepler 
+   (make-instance
+    'sail
+    :eom #'eom2
+    :cb *earth*
+    :nbodies nil
+    :accfun #'no-sail
+    :pointfun #'(lambda (s x c) *j2000*)
+    :lightness 0d0
+    :area 1200d0
+    :mass 45d0
+    :optical nil
+    :basis *j2000*
+    :t0 (coerce (encode-universal-time 0 0 0 16 12 2013) 'double-float)
+    :tf (coerce (encode-universal-time 0 0 12 16 12 2013) 'double-float)
+    :x0 (let* ((w (/ (* 2d0 pi) 86164d0))
+	       (r (expt (/ (slot-value *earth* 'mu) (expt w 2d0)) 1/3))
+	       (v (* w r)))
+	  (make-instance 
+	   'cartstate 
+	   :r (* r (ve3 :e1 1))
+	   :v (* v (unitg (ve3 :e2 1 :e3 0.1)))))
+    :rs (re3 :s 1)
+    :outfile "sail-3d-cart-geo-kepler-eg.dat")))

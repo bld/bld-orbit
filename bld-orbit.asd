@@ -9,4 +9,5 @@
   ((:file "package")
    (:file "orbit")
    (:file "body")
+   (:file "eom")
    (:file "examples")))

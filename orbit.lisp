@@ -152,11 +152,7 @@ Includes:
 	     (rsframe (*g rvr rsi)))
 	(values (new-frame rsail rsframe) rsframe)))))
 
-;; Kustaanheimo-Stiefel
-
-
 ;;; Sail classes
-
 
 (defclass sail ()
   ((eom :initarg :eom :initform #'eom :documentation "Equations of motion")
