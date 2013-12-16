@@ -157,7 +157,7 @@ Includes:
 (defclass sail ()
   ((eom :initarg :eom :initform #'eom :documentation "Equations of motion")
    (cb :initarg :cb :initform (make-instance 'body :mu 1d0) :documentation "Central body")
-   (nbodies :initarg :nbodies :documentation "Additional bodies with gravitational/solar influence")
+   (sun :initarg :sun :documentation "Sun (if it's different from CB)")
    (accfun :initarg :accfun :initform #'sail-ideal-acc :documentation "Sail acceleration function")
    (pointfun :initarg :pointfun :initform #'sail-pointing-fixed :documentation "Sail pointing function")
    (lightness :initarg :lightness :initform 0)
