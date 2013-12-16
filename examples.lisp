@@ -361,7 +361,7 @@
     'sail
     :eom #'eom2
     :cb *earth*
-    :nbodies nil
+    :nbodies (list *sun*)
     :accfun #'no-sail
     :pointfun #'(lambda (s x c) *j2000*)
     :lightness 0d0
@@ -369,8 +369,8 @@
     :mass 45d0
     :optical nil
     :basis *j2000*
-    :t0 (coerce (encode-universal-time 0 0 0 16 12 2013) 'double-float)
-    :tf (coerce (encode-universal-time 0 0 12 16 12 2013) 'double-float)
+    :t0 (coerce (encode-universal-time 0 0 0 16 12 2013 0) 'double-float)
+    :tf (coerce (encode-universal-time 0 0 0 17 12 2013 0) 'double-float)
     :x0 (let* ((w (/ (* 2d0 pi) 86164d0))
 	       (r (expt (/ (slot-value *earth* 'mu) (expt w 2d0)) 1/3))
 	       (v (* w r)))

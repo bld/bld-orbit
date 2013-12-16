@@ -51,7 +51,7 @@ SUN: Sun object"
     ;; position & velocity of SC relative to central body
     (with-slots (r v) (to-cartesian x s sc)
       (let* ((tm (time-of s x)) ; UTC
-	     (r-cb (position-velocity cb tm)) ; Position of central body
+	     (r-cb (slot-value (position-velocity cb tm) 'r)) ; Position of central body
 	     (r-sc (+ r-cb r)) ; position of SC in system
 	     (r-nbodies ; positions of other bodies in system
 	      (mapcar 
