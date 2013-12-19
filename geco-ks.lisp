@@ -2,8 +2,8 @@
 
 (in-package :bld-orbit)
 
-(defun sail-3d-Earth-Mars-template ()
-  (let ((t0 (coerce (encode-universal-time 0 0 0 16 12 2013 0) 'double-float)))
+(defun sail-3d-Earth-Mars-template (t0-rel rs)
+  (let ((t0 (coerce (+ t0-rel (encode-universal-time 0 0 0 16 12 2013 0)) 'double-float)))
     (make-instance
      'sail
      :eom #'eom2
@@ -17,24 +17,28 @@
      :optical nil
      :basis *j2000*
      :t0 0
-     :tf 0
+     :tf (first (car (last rs)))
      :x0 (to-initial-ks (position-velocity *earth* t0) t0 (make-instance 'sail :basis *j2000* :cb *sun*))
-     :rs nil
+     :rs rs
      :outfile nil)))
 
 (defparameter *rs-table-length* 10)
 
-(defparameter *tm-limit* (/ (* 200 24 60 60) *au*))
+(defparameter *tm-limit* 200)
 
-(defparameter *tf-weight* 5d-3)
+(defparameter *tm-scale* (/ (* 24 60 60) *au*))
 
-(defparameter *xf-weight* 1d0)
+(defparameter *tf-weight* 1d0)
+
+(defparameter *rf-weight* 1d0)
+
+(defparameter *vf-weight* 1d0)
 
 ;; RS-TIMES-CHROMOSOME
 
 (defclass rs-times-chromosome (chromosome)
   ()
-  (:documentation "RS lookup table times sequence chromosome"))
+  (:documentation "RS lookup table times (as 's') chromosome"))
 
 (defmethod size ((self rs-times-chromosome))
   *rs-table-length*)
@@ -112,6 +116,7 @@
   (:documentation "Initial time chromosome (days)"))
 
 (defmethod locus-arity ((self t0-chromosome) locus-index)
+  "Start time in days past initial in template"
   730)
 
 (defmethod size ((self t0-chromosome))
@@ -123,16 +128,16 @@
 ;; Turn chromosome into RS table
 
 (defun chromosomes-to-rs-table (tm-c s-c x-c y-c z-c)
-  "Turn chromosome into list of rotors suitable for table lookup in"
+  "Turn chromosome into list of rotors suitable for table lookup"
   (loop for tm across (loci tm-c)
      for s across (loci s-c)
      for x across (loci x-c)
      for y across (loci y-c)
      for z across (loci z-c)
-     sum tm into tm-accum
+     sum (* tm *tm-scale*) into tm-accum ; running sum
      collect (list tm-accum
-		   (unitg 
-		    (re3 :s (coerce s 'double-float)
+		   (unitg ; normalize rotor
+		    (re3 :s (coerce s 'double-float) ; distribute rotor coefficients
 			 :e2e3 (coerce x 'double-float)
 			 :e1e3 (coerce (- y) 'double-float)
 			 :e2e3 (coerce z 'double-float))))))
@@ -168,26 +173,28 @@
   (:documentation "RS lookup table plan"))
 
 (defmethod propagate-organism ((o rs-table-organism))
+  "Turn organism to sail object & propagate"
   (propagate (organism-to-sail o)))
 
 (defmethod evaluate ((self rs-table-organism) (plan rs-table-plan) &aux (chromosomes (genotype self)))
+  "Evaluate organism based on minimizing (- tf t0) and difference from Mars state at tf"
   (let* ((sail (organism-to-sail self)))
-    (with-slots (rs t0 tf) sail
-      (let* ((traj (propagate sail))
-	     (xf (second (car (last traj))))
-	     (tf-cost (* *tf-weight* (- tf t0)))
-	     (x-target (position-velocity *mars* (time-of tf xf)))
-	     (xf-diff (- xf x-target))
-	     (xf-cost (* *xf-weight*
-			 (+ (norme (slot-value xf-diff 'r))
-			    (norme (slot-value xf-diff 'v))))))
-	(setf (score self) (+ tf-cost xf-cost)))))
+    (with-slots (t0 tf) sail
+      (let* ((traj (propagate sail)) ; propagated trajectory
+	     (xf (to-cartesian (second (car (last traj))) (first (car (last traj))) sail)) ; final state
+	     (tf-cost (* *tf-weight* (- tf t0))) ; cost of time-of-flight
+	     (x-target (position-velocity *mars* (time-of tf xf))) ; state of target body Mars at tf
+	     (xf-diff (- xf x-target)) ; difference between final state & target state
+	     (rf-cost (* *rf-weight* (norme (slot-value xf-diff 'r))))
+	     (vf-cost (* *vf-weight* (norme (slot-value xf-diff 'v)))))
+	(setf (score self) (+ tf-cost rf-cost vf-cost))))))
 
 (defmethod REGENERATE ((plan rs-table-plan) (old-pop rs-table-population)
 		       &AUX (new-pop (make-population (ecosystem old-pop)
 						      (class-of old-pop)
 						      :size (size old-pop))))
   "Create a new generation from the previous one, and record statistics."
+  ;; Show statistics & generation
   (format t "Generation ~a: ~a~%" (generation-number (ecosystem old-pop)) (statistics old-pop))
   (setf (ecosystem new-pop) (ecosystem old-pop))
   ;; selectively reproduce, crossover, and mutate
@@ -248,16 +255,33 @@
 
 (defmethod organism-to-sail ((organism rs-table-organism) &aux (chromosomes (genotype organism)))
   (let* ((t0-rel (* (locus (first chromosomes) 0) 24d0 60d0 60d0))
-	 (sail (sail-3d-earth-mars-template))
-	 (t0 0)
 	 (rs (apply #'chromosomes-to-rs-table (rest chromosomes)))
-	 (tf (first (car (last rs)))))
-    (setf (slot-value sail 'rs) rs)
-    (setf (slot-value sail 't0) t0)
-    (setf (slot-value sail 'tf) tf)
+	 (sail (sail-3d-earth-mars-template t0-rel rs)))
     sail))
 
 (defun traj-to-planet (traj planet)
-  (loop for (tm) in traj
+  (loop for (s x) in traj
+     for tm = (time-of s x)
      collect (list tm (position-velocity planet tm))))
 
+(defun write-min-traj-and-planets (ecosystem)
+  (let* ((sail (organism-to-sail (find-min-organism ecosystem)))
+	 (traj-data (propagate sail :hmax-factor 100)))
+    (write-cart-traj "earth-mars.dat" (to-cartesian-traj traj-data sail))
+    (write-cart-traj "earth.dat" (traj-to-planet traj-data *earth*))
+    (write-cart-traj "mars.dat" (traj-to-planet traj-data *mars*))))
+
+(defun final-results (ecosystem)
+  (let* ((sail (organism-to-sail (find-min-organism ecosystem)))
+	 (traj (propagate sail :hmax-factor 100))
+	 (e-data (traj-to-planet traj *earth*))
+	 (m-data (traj-to-planet traj *mars*))
+	 (xf-m (car (last m-data)))
+	 (c-traj (to-cartesian-traj traj sail))
+	 (x0 (first c-traj))
+	 (xf (car (last c-traj)))
+	 (t0 (first x0))
+	 (tf (first xf))
+	 (days (/ (- tf t0) 24 60 60))
+	 (xerr (- (second xf) (second xf-m))))
+    (format t "Days: ~a~%Error: ~a~%" days xerr)))

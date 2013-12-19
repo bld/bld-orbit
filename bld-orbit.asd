@@ -11,4 +11,4 @@
    (:file "body")
    (:file "eom")
    (:file "examples")
-   (:file "geco")))
+   (:file "geco-ks")))

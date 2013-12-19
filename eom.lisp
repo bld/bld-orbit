@@ -103,8 +103,9 @@ SUN: Sun object"
 (defun sail-frame-sun-table (s x sc)
   "Return sail frame from lookup table of RVBASIS rotors RS"
   (with-slots (r v) (to-cartesian x s sc)
-    (with-slots (rs basis) sc
-      (let* ((rvbasis (rvbasis r v))
+    (with-slots (rs basis t0 tf) sc
+      (let* ((stmp (if (> s tf) tf s))
+	     (rvbasis (rvbasis r v))
 	     (rvr (recoverrotor rvbasis basis))
 	     (rsi (second (find s rs :test #'<= :key #'first)))
 	     (rsframe (*g rvr rsi)))
