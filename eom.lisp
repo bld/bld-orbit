@@ -63,12 +63,36 @@ SUN: Sun object"
      :r v
      :v (+ f g-cb))))
 
+(defmethod dxds (s (x ksstate) sc f g-cb)
+  (with-slots (alpha beta e tm) x
+    (let* ((xspin (to-spinor x s sc))
+	   (xcart (to-cartesian xspin s sc))
+	   (r (slot-value xcart 'r))
+	   (v (slot-value xcart 'v))
+	   (x0 (slot-value sc 'x0))
+	   (e0 (slot-value x0 'e))
+	   (hk0 (- e0))
+	   (w0 (sqrt (/ hk0 2)))
+	   (rm (norme r))
+	   (u (slot-value xspin 'u))
+	   (hk (- e))
+	   (w (/ (- hk hk0) 2))
+	   (ff (- (/ (*g f r u) 2) (* w u))))
+      (make-instance
+       'ksstate
+       :alpha (- (* ff (/ (sin (* w0 s)) w0)))
+       :beta (* ff (/ (cos (* w0 s)) w0))
+       :e (* rm (scalar (*i v f)))
+       :tm rm))))
+
+
 (defun sail-frame-sun-normal (s x sc)
   "Point sail at the sun"
   (with-slots (r v) (to-cartesian x s sc)
     (rvbasis r v)))
 
 (defun sail-frame-sun-fixed (s x sc)
+  "Return sail frame from fixed RVBASIS rotor"
   (with-slots (r v) (to-cartesian x s sc)
     (with-slots (rs basis) sc
       (let* ((rvbasis (rvbasis r v))
