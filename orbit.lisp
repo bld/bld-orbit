@@ -35,6 +35,8 @@ Includes:
   "Infinity norm of geometric algebra state variable"
   (norminf x))
 
+(defgeneric energy-cb (x cb) (:documentation "Specific orbital energy from state & central body"))
+
 (defgeneric energy (x sc) (:documentation "Keplerian orbit energy"))
 
 (defgeneric time-of (s x) (:documentation "Universal time"))
@@ -45,7 +47,11 @@ Includes:
 
 (defgeneric to-spinor (x s sc) (:documentation "Convert a state to spinor state"))
 
+(defgeneric to-initial-spinor (x s sc) (:documentation "Convert to an initial spinor state"))
+
 (defgeneric to-ks (x s sc) (:documentation "Convert to a Kustaanheimo-Stiefel orbit element state"))
+
+(defgeneric to-initial-ks (x s sc) (:documentation "Generate initial Kustaanheimo-Stiefel orbit element state from another state & corresponding central body"))
 
 ;;; Rotor, spinor and basis functions
 
@@ -205,6 +211,11 @@ Includes:
 
 (defstatearithmetic cartstate (r v))
 
+(defmethod energy-cb ((x cartstate) cb)
+  (with-slots (mu) cb
+    (with-slots (r v) x
+      (- (/ (scalar (exptg v 2)) 2) (/ mu (norme r))))))
+
 (defmethod energy ((x cartstate) sc)
   (with-slots (cb) sc
     (with-slots (mu) cb
@@ -240,6 +251,11 @@ Includes:
   (format stream "#<SPINORSTATE :U ~a :DUDS ~a :TM ~a>" (slot-value x 'u) (slot-value x 'duds) (slot-value x 'tm)))
 
 (defstatearithmetic spinorstate (u duds tm))
+
+(defmethod energy-cb ((x spinorstate) cb)
+  (with-slots (u duds) x
+    (with-slots (mu) cb
+      (/ (- (* 2 (norme2 duds)) mu) (norme2 u)))))
 
 (defmethod energy ((x spinorstate) sc)
   "Keplerian orbit energy"
@@ -290,6 +306,19 @@ Includes:
 	  'spinorstate
 	  :u u
 	  :duds (* 0.5d0 (*g3 v u (first basis)))
+	  :tm tm)
+	 0)))))
+
+(defmethod to-initial-spinor ((x cartstate) tm sc)
+  "Convert to an initial spinor state from cartesian state & time"
+  (with-slots (r v) x
+    (with-slots (basis) sc
+      (let ((u (recoverspinor (norme r) (rvbasis r v) basis)))
+	(values
+	 (make-instance
+	  'spinorstate
+	  :u u
+	  :duds (/ (*g3 v u (first basis)) 2)
 	  :tm tm)
 	 0)))))
 
@@ -393,7 +422,27 @@ Includes:
 
 (defmethod to-ks ((x cartstate) tm sc)
   "Convert cartesian state to KS"
-  (to-ks (to-spinor x 0 sc) 0 sc))
+  (to-ks (to-spinor x 0 sc) tm sc))
+
+(defmethod to-initial-ks ((x spinorstate) s sc)
+  "Generate initial KS state from spinor state, s (assumed 0), and SC"
+  (with-slots (u duds tm) x
+    (let* ((e0 (energy x sc))
+	   (hk0 (- e0))
+	   (w0 (sqrt (/ hk0 2)))
+	   (alpha0 u)
+	   (beta0 (/ duds w0)))
+      (values
+       (make-instance
+	'ksstate
+	:alpha alpha0
+	:beta beta0
+	:e e0
+	:tm tm)
+       0))))
+
+(defmethod to-initial-ks ((x cartstate) tm sc)
+  (to-initial-ks (to-initial-spinor x tm sc) 0 sc))  
 
 (defmethod to-ks (x s sc)
   "Default: try cartesian first"
