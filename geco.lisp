@@ -24,11 +24,13 @@
 
 (defparameter *rs-table-length* 10)
 
-(defparameter *tm-limit* 1000)
+(defparameter *tm-limit* 200)
 
-(defparameter *tf-weight* 1d-4)
+(defparameter *tf-weight* 5d-3)
 
-(defparameter *xf-weight* 1d3)
+(defparameter *xf-weight* 1d0)
+
+;; RS-TIMES-CHROMOSOME
 
 (defclass rs-times-chromosome (chromosome)
   ()
@@ -43,6 +45,8 @@
 (defmethod loci-printable-form ((self rs-times-chromosome))
   (loci self))
 
+;; RS-S-CHROMOSOME
+
 (defclass rs-s-chromosome (chromosome)
   ()
   (:documentation "RS lookup table of scalar quaternion components"))
@@ -55,6 +59,8 @@
 
 (defmethod loci-printable-form ((self rs-s-chromosome))
   (loci self))
+
+;; RS-X-CHROMOSOME
 
 (defclass rs-x-chromosome (chromosome)
   ()
@@ -69,6 +75,8 @@
 (defmethod loci-printable-form ((self rs-x-chromosome))
   (loci self))
 
+;; RS-Y-CHROMOSOME
+
 (defclass rs-y-chromosome (chromosome)
   ()
   (:documentation "RS lookup table of (dual y) quaternion components"))
@@ -82,6 +90,8 @@
 (defmethod loci-printable-form ((self rs-y-chromosome))
   (loci self))
 
+;; RS-Z-CHROMOSOME
+
 (defclass rs-z-chromosome (chromosome)
   ()
   (:documentation "RS lookup table of (dual z) quaternion components"))
@@ -94,6 +104,23 @@
 
 (defmethod loci-printable-form ((self rs-z-chromosome))
   (loci self))
+
+;; T0-CHROMOSOME
+
+(defclass t0-chromosome (chromosome)
+  ()
+  (:documentation "Initial time chromosome (days)"))
+
+(defmethod locus-arity ((self t0-chromosome) locus-index)
+  730)
+
+(defmethod size ((self t0-chromosome))
+  1)
+
+(defmethod loci-printable-form ((self t0-chromosome))
+  (loci self))
+
+;; Turn chromosome into RS table
 
 (defun chromosomes-to-rs-table (t0 tm-c s-c x-c y-c z-c)
   "Turn chromosome into list of rotors suitable for table lookup in"
@@ -115,7 +142,8 @@
   (:documentation "RS lookup table organism"))
 
 (defmethod chromosome-classes ((self rs-table-organism))
-  '(rs-times-chromosome
+  '(t0-chromosome
+    rs-times-chromosome
     rs-s-chromosome
     rs-x-chromosome
     rs-y-chromosome
@@ -139,15 +167,17 @@
   ()
   (:documentation "RS lookup table plan"))
 
+(defmethod propagate-organism ((o rs-table-organism))
+  (propagate (organism-to-sail o)))
+
 (defmethod evaluate ((self rs-table-organism) (plan rs-table-plan) &aux (chromosomes (genotype self)))
-  (let* ((sail (sail-3d-earth-mars-template))
-	 (rs (apply #'chromosomes-to-rs-table (slot-value sail 't0) chromosomes))
-	 (tf (first (car (last rs)))))
-    (setf (slot-value sail 'rs) rs)
-    (setf (slot-value sail 'tf) tf)
+  (let* ((sail (organism-to-sail self))
+	 (rs (slot-value sail 'rs))
+	 (t0 (slot-value sail 't0))
+	 (tf (slot-value sail 'tf)))
     (let* ((traj (propagate sail))
 	   (xf (second (car (last traj))))
-	   (tf-cost (* *tf-weight* tf))
+	   (tf-cost (* *tf-weight* (- tf t0)))
 	   (x-target (position-velocity *mars* tf))
 	   (xf-diff (- xf x-target))
 	   (xf-cost (* *xf-weight*
@@ -160,6 +190,7 @@
 						      (class-of old-pop)
 						      :size (size old-pop))))
   "Create a new generation from the previous one, and record statistics."
+  (format t "Generation ~a: ~a~%" (generation-number (ecosystem old-pop)) (statistics old-pop))
   (setf (ecosystem new-pop) (ecosystem old-pop))
   ;; selectively reproduce, crossover, and mutate
   (operate-on-population plan old-pop new-pop)
@@ -209,6 +240,26 @@
 	 'ecosystem
 	 :pop-class 'rs-table-population
 	 :pop-size pop-size
-	 :plan-class 'rs-table-plan
-	 :evaluation-limit evaluation-limit))
+	  :plan-class 'rs-table-plan
+	  :evaluation-limit evaluation-limit))
   (evolve *rs-table-ecosystem*))
+
+(defun find-min-organism (ecosystem)
+  (let ((orgs (organisms (population ecosystem))))
+    (find (apply #'min (map 'list #'score orgs)) orgs :key #'score)))
+
+(defmethod organism-to-sail ((organism rs-table-organism) &aux (chromosomes (genotype organism)))
+  (let* ((t0-rel (* (locus (first chromosomes) 0) 24d0 60d0 60d0))
+	 (sail (sail-3d-earth-mars-template))
+	 (t0 (+ (slot-value sail 't0) t0-rel))
+	 (rs (apply #'chromosomes-to-rs-table t0 (rest chromosomes)))
+	 (tf (first (car (last rs)))))
+    (setf (slot-value sail 'rs) rs)
+    (setf (slot-value sail 't0) t0)
+    (setf (slot-value sail 'tf) tf)
+    sail))
+
+(defun traj-to-planet (traj planet)
+  (loop for (tm) in traj
+     collect (list tm (position-velocity planet tm))))
+
