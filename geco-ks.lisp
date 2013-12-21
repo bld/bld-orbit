@@ -28,11 +28,13 @@
 
 (defparameter *tm-scale* (/ (* 24 60 60) *au*))
 
-(defparameter *tf-weight* 1d0)
+(defparameter *tf-weight* 1d-1)
 
 (defparameter *rf-weight* 1d0)
 
 (defparameter *vf-weight* 1d0)
+
+(defparameter *xf-weight* (alexandria:plist-hash-table '(:alpha 1d0 :beta 1d0 :e 1d1)))
 
 ;; RS-TIMES-CHROMOSOME
 
@@ -178,7 +180,7 @@
 
 (defmethod evaluate ((self rs-table-organism) (plan rs-table-plan) &aux (chromosomes (genotype self)))
   "Evaluate organism based on minimizing (- tf t0) and difference from Mars state at tf"
-  (let* ((sail (organism-to-sail self)))
+#|  (let* ((sail (organism-to-sail self)))
     (with-slots (t0 tf) sail
       (let* ((traj (propagate sail)) ; propagated trajectory
 	     (xf (to-cartesian (second (car (last traj))) (first (car (last traj))) sail)) ; final state
@@ -188,6 +190,25 @@
 	     (rf-cost (* *rf-weight* (norme (slot-value xf-diff 'r))))
 	     (vf-cost (* *vf-weight* (norme (slot-value xf-diff 'v)))))
 	(setf (score self) (+ tf-cost rf-cost vf-cost))))))
+|#
+  (let* ((sail (organism-to-sail self)))
+    (with-slots ((s0 t0) (sf tf)) sail
+      (with-slots ((xks-m xks)) *mars*
+	(let* ((traj (propagate sail)) ; propagated trajectory
+	       (xf (second (car (last traj)))) ; final state
+	       (sf-cost (* sf *tf-weight*)) ; minimize time of flight
+	       (xf-cart (to-cartesian xf sf sail)) ; final sc position/velocity
+	       (xf-cart-m (position-velocity *mars* (slot-value xf 'tm))) ; final mars position/velocity
+	       (rf (slot-value xf-cart 'r))
+	       (rf-m (slot-value xf-cart-m 'r)))
+	  (with-slots (alpha beta e tm) xf
+	    (with-slots ((alpha-m alpha) (beta-m beta) (e-m e)) xks-m
+	      (let* ((alpha-cost (* (norme (- alpha alpha-m)) (gethash :alpha *xf-weight*))) ; match alpha
+		     (beta-cost (* (norme (- beta beta-m)) (gethash :beta *xf-weight*))) ; match beta
+		     (e-cost (* (- e e-m) (gethash :e *xf-weight*))) ; match energy
+		     (rm-cost (* *rf-weight* (norme (- rf rf-m))))) ; minimize radius to target body
+		(setf (score self) (+ sf-cost alpha-cost beta-cost e-cost rm-cost))))))))))
+
 
 (defmethod REGENERATE ((plan rs-table-plan) (old-pop rs-table-population)
 		       &AUX (new-pop (make-population (ecosystem old-pop)
