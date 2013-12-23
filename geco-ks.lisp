@@ -2,8 +2,8 @@
 
 (in-package :bld-orbit)
 
-(defun sail-3d-Earth-Mars-template (t0-rel rs)
-  (let ((t0 (coerce (+ t0-rel (encode-universal-time 0 0 0 16 12 2013 0)) 'double-float)))
+(defun sail-3d-Earth-Mars-template (rs)
+  (let ((t0 (coerce (+ *t0-rel* (encode-universal-time 0 0 0 16 12 2013 0)) 'double-float)))
     (make-instance
      'sail
      :eom #'eom2
@@ -22,19 +22,19 @@
      :rs rs
      :outfile nil)))
 
+(defvar *t0-rel* 0d0)
+
 (defparameter *rs-table-length* 10)
 
 (defparameter *tm-limit* 200)
 
 (defparameter *tm-scale* (/ (* 24 60 60) *au*))
 
-(defparameter *tf-weight* 1d-1)
+(defparameter *tf-weight* 1d-5)
 
-(defparameter *rf-weight* 1d0)
+(defparameter *rf-weight* 1d-5)
 
-(defparameter *vf-weight* 1d0)
-
-(defparameter *xf-weight* (alexandria:plist-hash-table '(:alpha 1d0 :beta 1d0 :e 1d1)))
+(defparameter *xf-weight* (alexandria:plist-hash-table '(:alpha 1d0 :beta 1d0 :e 1d2)))
 
 ;; RS-TIMES-CHROMOSOME
 
@@ -111,22 +111,6 @@
 (defmethod loci-printable-form ((self rs-z-chromosome))
   (loci self))
 
-;; T0-CHROMOSOME
-
-(defclass t0-chromosome (chromosome)
-  ()
-  (:documentation "Initial time chromosome (days)"))
-
-(defmethod locus-arity ((self t0-chromosome) locus-index)
-  "Start time in days past initial in template"
-  730)
-
-(defmethod size ((self t0-chromosome))
-  1)
-
-(defmethod loci-printable-form ((self t0-chromosome))
-  (loci self))
-
 ;; Turn chromosome into RS table
 
 (defun chromosomes-to-rs-table (tm-c s-c x-c y-c z-c)
@@ -149,8 +133,7 @@
   (:documentation "RS lookup table organism"))
 
 (defmethod chromosome-classes ((self rs-table-organism))
-  '(t0-chromosome
-    rs-times-chromosome
+  '(rs-times-chromosome
     rs-s-chromosome
     rs-x-chromosome
     rs-y-chromosome
@@ -180,35 +163,33 @@
 
 (defmethod evaluate ((self rs-table-organism) (plan rs-table-plan) &aux (chromosomes (genotype self)))
   "Evaluate organism based on minimizing (- tf t0) and difference from Mars state at tf"
-#|  (let* ((sail (organism-to-sail self)))
-    (with-slots (t0 tf) sail
-      (let* ((traj (propagate sail)) ; propagated trajectory
-	     (xf (to-cartesian (second (car (last traj))) (first (car (last traj))) sail)) ; final state
-	     (tf-cost (* *tf-weight* (- tf t0))) ; cost of time-of-flight
-	     (x-target (position-velocity *mars* (time-of tf xf))) ; state of target body Mars at tf
-	     (xf-diff (- xf x-target)) ; difference between final state & target state
-	     (rf-cost (* *rf-weight* (norme (slot-value xf-diff 'r))))
-	     (vf-cost (* *vf-weight* (norme (slot-value xf-diff 'v)))))
-	(setf (score self) (+ tf-cost rf-cost vf-cost))))))
-|#
   (let* ((sail (organism-to-sail self)))
     (with-slots ((s0 t0) (sf tf)) sail
       (with-slots ((xks-m xks)) *mars*
 	(let* ((traj (propagate sail)) ; propagated trajectory
+	       (x0 (second (first traj))) ; final state
 	       (xf (second (car (last traj)))) ; final state
-	       (sf-cost (* sf *tf-weight*)) ; minimize time of flight
+	       (t0 (slot-value x0 'tm))
+	       (tf (slot-value xf 'tm))
+	       (tm-cost (* *tf-weight* (- tf t0))) ; Traval time cost
 	       (xf-cart (to-cartesian xf sf sail)) ; final sc position/velocity
-	       (xf-cart-m (position-velocity *mars* (slot-value xf 'tm))) ; final mars position/velocity
+	       (xf-cart-m (position-velocity *mars* tf)) ; final mars position/velocity
 	       (rf (slot-value xf-cart 'r))
 	       (rf-m (slot-value xf-cart-m 'r)))
 	  (with-slots (alpha beta e tm) xf
 	    (with-slots ((alpha-m alpha) (beta-m beta) (e-m e)) xks-m
-	      (let* ((alpha-cost (* (norme (- alpha alpha-m)) (gethash :alpha *xf-weight*))) ; match alpha
-		     (beta-cost (* (norme (- beta beta-m)) (gethash :beta *xf-weight*))) ; match beta
-		     (e-cost (* (- e e-m) (gethash :e *xf-weight*))) ; match energy
+	      (let* ((dalpha (- alpha alpha-m))
+		     (dbeta (- beta beta-m))
+		     (alpha-cost (* (norme dalpha) (gethash :alpha *xf-weight*))) ; match alpha
+		     (beta-cost (* (norme dbeta) (gethash :beta *xf-weight*))) ; match beta
+		     (e-cost (* (abs (- e e-m)) (gethash :e *xf-weight*))) ; match energy
 		     (rm-cost (* *rf-weight* (norme (- rf rf-m))))) ; minimize radius to target body
-		(setf (score self) (+ sf-cost alpha-cost beta-cost e-cost rm-cost))))))))))
-
+		(values (setf (score self) (+ tm-cost alpha-cost beta-cost e-cost rm-cost))
+			tm-cost
+			alpha-cost
+			beta-cost
+			e-cost
+			rm-cost)))))))))
 
 (defmethod REGENERATE ((plan rs-table-plan) (old-pop rs-table-population)
 		       &AUX (new-pop (make-population (ecosystem old-pop)
@@ -275,9 +256,8 @@
     (find (apply #'min (map 'list #'score orgs)) orgs :key #'score)))
 
 (defmethod organism-to-sail ((organism rs-table-organism) &aux (chromosomes (genotype organism)))
-  (let* ((t0-rel (* (locus (first chromosomes) 0) 24d0 60d0 60d0))
-	 (rs (apply #'chromosomes-to-rs-table (rest chromosomes)))
-	 (sail (sail-3d-earth-mars-template t0-rel rs)))
+  (let* ((rs (apply #'chromosomes-to-rs-table chromosomes))
+	 (sail (sail-3d-earth-mars-template rs)))
     sail))
 
 (defun traj-to-planet (traj planet)
@@ -306,3 +286,12 @@
 	 (days (/ (- tf t0) 24 60 60))
 	 (xerr (- (second xf) (second xf-m))))
     (format t "Days: ~a~%Error: ~a~%" days xerr)))
+
+(defun evaluate-min (ecosystem)
+  (let ((results (multiple-value-list (evaluate (find-min-organism ecosystem) (plan ecosystem))))
+	(keys '(:total :time :alpha :beta :e :rm)))
+    (plist-hash-table (loop for result in results
+			 for key in keys
+			 collect key
+			 collect result))))
+     
