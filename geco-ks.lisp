@@ -285,7 +285,8 @@
 	 (tf (first xf))
 	 (days (/ (- tf t0) 24 60 60))
 	 (xerr (- (second xf) (second xf-m))))
-    (format t "Days: ~a~%Error: ~a~%" days xerr)))
+    (format t "Days: ~a~%Error: ~a~%" days xerr)
+    (format t "State error: ~a~%" (- (second (car (last traj))) (slot-value *mars* 'xks)))))
 
 (defun evaluate-min (ecosystem)
   (let ((results (multiple-value-list (evaluate (find-min-organism ecosystem) (plan ecosystem))))
