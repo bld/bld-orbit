@@ -107,6 +107,6 @@ SUN: Sun object"
       (let* ((stmp (if (> s tf) tf s))
 	     (rvbasis (rvbasis r v))
 	     (rvr (recoverrotor rvbasis basis))
-	     (rsi (second (find s rs :test #'<= :key #'first)))
+	     (rsi (second (find stmp rs :test #'<= :key #'first)))
 	     (rsframe (*g rvr rsi)))
 	(values (new-frame rsframe basis) rsframe)))))
