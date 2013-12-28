@@ -22,40 +22,38 @@
      :rs rs
      :outfile nil)))
 
-(defvar *t0-rel* 0d0)
+(defvar *t0-rel* 0d0 "Relative departure time from Earth (seconds)")
 
-(defparameter *rs-table-length* 10)
+(defparameter *rs-table-length* 10 "Length of lookup table of sail/orbit frame rotors")
 
-(defparameter *tm-limit* 200)
+(defparameter *sf-arity* 100 "Number of final independant variable (SF) values")
 
-(defparameter *tm-scale* (/ (* 24 60 60) *au*))
+(defparameter *sf-scale* 1d0 "Real valued maximum scale of SF")
 
-(defparameter *tf-weight* 1d-5)
+(defparameter *tof-weight* 1d-11 "Weight on time of flight (- tf t0) in cost function")
 
-(defparameter *rf-weight* 1d-5)
+(defparameter *xf-weight* 1d3 "Weight on final state error from target in cost function")
 
-(defparameter *xf-weight* (alexandria:plist-hash-table '(:alpha 1d0 :beta 1d0 :e 1d2)))
+;; SF-CHROMOSOME
 
-;; RS-TIMES-CHROMOSOME
-
-(defclass rs-times-chromosome (chromosome)
+(defclass sf-chromosome (chromosome)
   ()
-  (:documentation "RS lookup table times (as 's') chromosome"))
+  (:documentation "SF final chromosome"))
 
-(defmethod size ((self rs-times-chromosome))
-  *rs-table-length*)
+(defmethod size ((self sf-chromosome))
+  1)
 
-(defmethod locus-arity ((self rs-times-chromosome) locus-index)
-  *tm-limit*)
+(defmethod locus-arity ((self sf-chromosome) locus-index)
+  *sf-arity*)
 
-(defmethod loci-printable-form ((self rs-times-chromosome))
+(defmethod loci-printable-form ((self sf-chromosome))
   (loci self))
 
 ;; RS-S-CHROMOSOME
 
 (defclass rs-s-chromosome (chromosome)
   ()
-  (:documentation "RS lookup table of scalar quaternion components"))
+  (:documentation "RS lookup table of scalar rotor components"))
 
 (defmethod size ((self rs-s-chromosome))
   *rs-table-length*)
@@ -70,7 +68,7 @@
 
 (defclass rs-x-chromosome (chromosome)
   ()
-  (:documentation "RS lookup table of (dual x) quaternion components"))
+  (:documentation "RS lookup table of (dual x) rotor components"))
 
 (defmethod locus-arity ((self rs-x-chromosome) locus-index)
   101)
@@ -85,7 +83,7 @@
 
 (defclass rs-y-chromosome (chromosome)
   ()
-  (:documentation "RS lookup table of (dual y) quaternion components"))
+  (:documentation "RS lookup table of (dual y) rotor components"))
 
 (defmethod locus-arity ((self rs-y-chromosome) locus-index)
   101)
@@ -100,7 +98,7 @@
 
 (defclass rs-z-chromosome (chromosome)
   ()
-  (:documentation "RS lookup table of (dual z) quaternion components"))
+  (:documentation "RS lookup table of (dual z) rotor components"))
 
 (defmethod locus-arity ((self rs-z-chromosome) locus-index)
   101)
@@ -113,27 +111,34 @@
 
 ;; Turn chromosome into RS table
 
-(defun chromosomes-to-rs-table (tm-c s-c x-c y-c z-c)
-  "Turn chromosome into list of rotors suitable for table lookup"
-  (loop for tm across (loci tm-c)
-     for s across (loci s-c)
-     for x across (loci x-c)
-     for y across (loci y-c)
-     for z across (loci z-c)
-     sum (* tm *tm-scale*) into tm-accum ; running sum
-     collect (list tm-accum
+(defmethod to-value ((sf-c sf-chromosome))
+  "Convert TF chromosome to TF value"
+  (* (/ (aref (loci sf-c) 0) *sf-arity*) *sf-scale*))
+
+(defun chromosomes-to-rs-table (sf-c r-s-c r-x-c r-y-c r-z-c)
+  "Turn chromosome into list of rotors suitable for table lookup."
+  (loop with sf = (to-value sf-c) ; final time
+     with ds = (/ sf *rs-table-length*) ; time step size
+     ;; rotor components
+     for r-s across (loci r-s-c) ; scalar
+     for r-x across (loci r-x-c) ; (- (dual x))
+     for r-y across (loci r-y-c) ; (- (dual y))
+     for r-z across (loci r-z-c) ; (- (dual z))
+     ;; accumulated times for table
+     sum ds into s-accum
+     collect (list s-accum
 		   (unitg ; normalize rotor
-		    (re3 :s (coerce s 'double-float) ; distribute rotor coefficients
-			 :e2e3 (coerce x 'double-float)
-			 :e1e3 (coerce (- y) 'double-float)
-			 :e2e3 (coerce z 'double-float))))))
+		    (re3 :s (coerce r-s 'double-float) ; distribute rotor coefficients
+			 :e2e3 (coerce r-x 'double-float)
+			 :e1e3 (coerce (- r-y) 'double-float)
+			 :e2e3 (coerce r-z 'double-float))))))
 
 (defclass rs-table-organism (organism)
   ()
   (:documentation "RS lookup table organism"))
 
 (defmethod chromosome-classes ((self rs-table-organism))
-  '(rs-times-chromosome
+  '(sf-chromosome
     rs-s-chromosome
     rs-x-chromosome
     rs-y-chromosome
@@ -143,9 +148,9 @@
   ()
   (:documentation "RS table population statistics"))
 
-(defclass rs-table-population (generational-population minimizing-score-mixin)
+(defclass rs-table-population (generational-population maximizing-score-mixin)
   ()
-  (:documentation "Population of RS tables to minimize scores"))
+  (:documentation "Population of RS tables to maximize scores"))
 
 (defmethod organism-class ((self rs-table-population))
   'rs-table-organism)
@@ -163,33 +168,21 @@
 
 (defmethod evaluate ((self rs-table-organism) (plan rs-table-plan) &aux (chromosomes (genotype self)))
   "Evaluate organism based on minimizing (- tf t0) and difference from Mars state at tf"
-  (let* ((sail (organism-to-sail self)))
-    (with-slots ((s0 t0) (sf tf)) sail
-      (with-slots ((xks-m xks)) *mars*
-	(let* ((traj (propagate sail)) ; propagated trajectory
-	       (x0 (second (first traj))) ; final state
-	       (xf (second (car (last traj)))) ; final state
-	       (t0 (slot-value x0 'tm))
-	       (tf (slot-value xf 'tm))
-	       (tm-cost (* *tf-weight* (- tf t0))) ; Traval time cost
-	       (xf-cart (to-cartesian xf sf sail)) ; final sc position/velocity
-	       (xf-cart-m (position-velocity *mars* tf)) ; final mars position/velocity
-	       (rf (slot-value xf-cart 'r))
-	       (rf-m (slot-value xf-cart-m 'r)))
-	  (with-slots (alpha beta e tm) xf
-	    (with-slots ((alpha-m alpha) (beta-m beta) (e-m e)) xks-m
-	      (let* ((dalpha (- alpha alpha-m))
-		     (dbeta (- beta beta-m))
-		     (alpha-cost (* (norme dalpha) (gethash :alpha *xf-weight*))) ; match alpha
-		     (beta-cost (* (norme dbeta) (gethash :beta *xf-weight*))) ; match beta
-		     (e-cost (* (abs (- e e-m)) (gethash :e *xf-weight*))) ; match energy
-		     (rm-cost (* *rf-weight* (norme (- rf rf-m))))) ; minimize radius to target body
-		(values (setf (score self) (+ tm-cost alpha-cost beta-cost e-cost rm-cost))
-			tm-cost
-			alpha-cost
-			beta-cost
-			e-cost
-			rm-cost)))))))))
+  (let* ((sail (organism-to-sail self)) ; sail object to propagate
+	 (traj (propagate sail))) ; propagated trajectory
+    (destructuring-bind (s0 x0) (first traj) ; initial state & independant variable
+      (destructuring-bind (sf xf) (car (last traj)) ; final state & independant variable
+	(let* ((t0 (time-of s0 x0)) ; initial time
+	       (tf (time-of sf xf)) ; final time
+	       (tof-cost (* (expt (- tf t0) 2) *tof-weight*))
+	       (xf-cart (to-cartesian xf sf sail)) ; final cartesian sc state
+	       (xf-cart-m (position-velocity *mars* tf))) ; final mars cartesian state
+	  (with-slots ((rf r) (vf v)) xf-cart ; sc final pos/vel
+	    (with-slots ((rf-m r) (vf-m v)) xf-cart-m ; mars final pos/vel
+	      (let ((xf-cost (* (+ (norme2 (- rf rf-m))
+				   (norme2 (- vf vf-m)))
+				*xf-weight*)))
+		(setf (score self) (/ (+ tof-cost xf-cost)))))))))))
 
 (defmethod REGENERATE ((plan rs-table-plan) (old-pop rs-table-population)
 		       &AUX (new-pop (make-population (ecosystem old-pop)
@@ -205,18 +198,17 @@
 
 (defmethod PROB-MUTATE ((self rs-table-plan))
   "This is the probability of mutating an organism, not a single locus as is often used."
-  0.03)
+  0.0015)
 
 (defmethod PROB-CROSS ((self rs-table-plan))
   "The probability of crossover for an organism."
-  0.7)
+  0.6)
 
 (defmethod OPERATE-ON-POPULATION
     ((plan rs-table-plan) old-population new-population 
      &AUX (new-organisms (organisms new-population))
        (p-cross (prob-cross plan))
-       (p-mutate (+ p-cross (prob-mutate plan)))
-       (orphan (make-instance (organism-class old-population)))) ; not in any population
+       (p-mutate (+ p-cross (prob-mutate plan))))
   (let ((selector (stochastic-remainder-preselect old-population)))
     (do ((org1 (funcall selector) (funcall selector))
 	 org2
@@ -225,12 +217,22 @@
 	((null org1))
       (cond
 	((> p-cross random#)
-	 (setf org2 (pick-random-organism old-population))
-	 (if (every #'(lambda (c-num)
-			(< 1 (hamming-distance (nth c-num (genotype org1)) (nth c-num (genotype org2)))))
-		    '(0 1 2 3 4))
-	     (uniform-cross-organisms org1 org2 (setf (aref new-organisms i) (copy-organism org1 :new-population new-population)) orphan)
-	     (setf (aref new-organisms i) (copy-organism-with-score org1 :new-population new-population))))
+	 (if (and (setq org2 (funcall selector))
+		  (every #'(lambda (c-num)
+			     (< 1 (hamming-distance (nth c-num (genotype org1)) (nth c-num (genotype org2)))))
+			 '(0 1 2 3 4)))
+	     (uniform-cross-organisms
+	      org1 org2
+	      (setf (aref new-organisms i)
+		    (copy-organism org1 :new-population new-population))
+	      (setf (aref new-organisms (1+ i))
+		    (copy-organism org2 :new-population new-population)))
+	     (progn
+	       (setf (aref new-organisms i) (copy-organism-with-score org1 :new-population new-population))
+	       (when org2
+		 (setf (aref new-organisms (1+ i))
+		       (copy-organism-with-score org2 :new-population new-population)))))
+	 (incf i))
 	((> p-mutate random#)
 	 (mutate-organism
 	  (setf (aref new-organisms i)
@@ -241,19 +243,24 @@
 
 (defvar *rs-table-ecosystem* nil "rs table ecosystem")
 
-(defun find-rs-table (&key (pop-size 20) (evaluation-limit 400))
+(defun find-rs-table (&key (pop-size 20) (evaluation-limit 400) (generation-limit 10))
   (setq *rs-table-ecosystem*
 	(make-instance 
 	 'ecosystem
 	 :pop-class 'rs-table-population
 	 :pop-size pop-size
 	 :plan-class 'rs-table-plan
+	 :generation-limit generation-limit
 	 :evaluation-limit evaluation-limit))
   (evolve *rs-table-ecosystem*))
 
-(defun find-min-organism (ecosystem)
-  (let ((orgs (organisms (population ecosystem))))
-    (find (apply #'min (map 'list #'score orgs)) orgs :key #'score)))
+(defun find-best-organism (ecosystem)
+  (let* ((fun (typecase (population ecosystem)
+		(maximizing-score-mixin #'max)
+		(minimizing-score-mixin #'min)
+		(t (error "Max or Min score mixin not defined for population"))))
+	 (orgs (organisms (population ecosystem))))
+    (find (apply fun (map 'list #'score orgs)) orgs :key #'score)))
 
 (defmethod organism-to-sail ((organism rs-table-organism) &aux (chromosomes (genotype organism)))
   (let* ((rs (apply #'chromosomes-to-rs-table chromosomes))
@@ -265,15 +272,15 @@
      for tm = (time-of s x)
      collect (list tm (position-velocity planet tm))))
 
-(defun write-min-traj-and-planets (ecosystem)
-  (let* ((sail (organism-to-sail (find-min-organism ecosystem)))
+(defun write-traj-and-planets (ecosystem)
+  (let* ((sail (organism-to-sail (find-best-organism ecosystem)))
 	 (traj-data (propagate sail :hmax-factor 100)))
     (write-cart-traj "earth-mars.dat" (to-cartesian-traj traj-data sail))
     (write-cart-traj "earth.dat" (traj-to-planet traj-data *earth*))
     (write-cart-traj "mars.dat" (traj-to-planet traj-data *mars*))))
 
 (defun final-results (ecosystem)
-  (let* ((sail (organism-to-sail (find-min-organism ecosystem)))
+  (let* ((sail (organism-to-sail (find-best-organism ecosystem)))
 	 (traj (propagate sail :hmax-factor 100))
 	 (e-data (traj-to-planet traj *earth*))
 	 (m-data (traj-to-planet traj *mars*))
@@ -288,8 +295,8 @@
     (format t "Days: ~a~%Error: ~a~%" days xerr)
     (format t "State error: ~a~%" (- (second (car (last traj))) (slot-value *mars* 'xks)))))
 
-(defun evaluate-min (ecosystem)
-  (let ((results (multiple-value-list (evaluate (find-min-organism ecosystem) (plan ecosystem))))
+(defun evaluate-best (ecosystem)
+  (let ((results (multiple-value-list (evaluate (find-best-organism ecosystem) (plan ecosystem))))
 	(keys '(:total :time :alpha :beta :e :rm)))
     (plist-hash-table (loop for result in results
 			 for key in keys
