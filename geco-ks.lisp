@@ -2,27 +2,9 @@
 
 (in-package :bld-orbit)
 
-(defun sail-3d-Earth-Mars-template (rs)
-  (let ((t0 (coerce (+ *t0-rel* (encode-universal-time 0 0 0 16 12 2013 0)) 'double-float)))
-    (make-instance
-     'sail
-     :eom #'eom2
-     :cb *sun*
-     :sun *sun*
-     :accfun #'sail-flat-ideal-acc
-     :pointfun #'sail-frame-sun-table
-     :lightness 0d0
-     :area 1200d-6
-     :mass 45d0
-     :optical nil
-     :basis *j2000*
-     :t0 0
-     :tf (first (car (last rs)))
-     :x0 (to-initial-ks (position-velocity *earth* t0) t0 (make-instance 'sail :basis *j2000* :cb *sun*))
-     :rs rs
-     :outfile nil)))
-
 (defvar *t0-rel* 0d0 "Relative departure time from Earth (seconds)")
+
+(defparameter *inertial-frame* *j2000* "Inirtial reference frame within which multivectors defined")
 
 (defparameter *rs-table-length* 10 "Length of lookup table of sail/orbit frame rotors")
 
@@ -30,9 +12,36 @@
 
 (defparameter *sf-scale* 1d0 "Real valued maximum scale of SF")
 
-(defparameter *tof-weight* 1d-11 "Weight on time of flight (- tf t0) in cost function")
+(defparameter *tof-weight* 1d-11 "Weight on time of flight (in days) in cost function")
 
-(defparameter *xf-weight* 1d3 "Weight on final state error from target in cost function")
+(defparameter *xf-weight* 1d0 "Weight on final state error from target in cost function")
+
+(defparameter *target* *mars* "Target body")
+
+(defparameter *origin* *earth* "Origin body")
+
+(defparameter *star* *sun* "Star about which bodies orbit")
+
+(defun sail-3d-Earth-Mars-template (rs)
+  "Generate sail object given sail rotor (RS) lookup table"
+  (let ((t0 (coerce (+ *t0-rel* (encode-universal-time 0 0 0 16 12 2013 0)) 'double-float)))
+    (make-instance
+     'sail
+     :eom #'eom2
+     :cb *star*
+     :sun *star*
+     :accfun #'sail-flat-ideal-acc
+     :pointfun #'sail-frame-sun-table
+     :lightness 0d0
+     :area 1200d-6
+     :mass 45d0
+     :optical nil
+     :basis *inertial-frame*
+     :t0 0
+     :tf (first (car (last rs)))
+     :x0 (to-initial-ks (position-velocity *origin* t0) t0 (make-instance 'sail :basis *inertial-frame* :cb *star*))
+     :rs rs
+     :outfile nil)))
 
 ;; SF-CHROMOSOME
 
@@ -144,6 +153,9 @@
     rs-y-chromosome
     rs-z-chromosome))
 
+(defmethod pick-random-chromosome-index ((self rs-table-organism))
+  (random (length (genotype self))))
+
 (defclass rs-table-statistics (population-statistics)
   ()
   (:documentation "RS table population statistics"))
@@ -174,9 +186,9 @@
       (destructuring-bind (sf xf) (car (last traj)) ; final state & independant variable
 	(let* ((t0 (time-of s0 x0)) ; initial time
 	       (tf (time-of sf xf)) ; final time
-	       (tof-cost (* (expt (- tf t0) 2) *tof-weight*))
+	       (tof-cost (* (expt (/ (- tf t0) 24d0 60d0 60d0) 2) *tof-weight*))
 	       (xf-cart (to-cartesian xf sf sail)) ; final cartesian sc state
-	       (xf-cart-m (position-velocity *mars* tf))) ; final mars cartesian state
+	       (xf-cart-m (position-velocity *target* tf))) ; final mars cartesian state
 	  (with-slots ((rf r) (vf v)) xf-cart ; sc final pos/vel
 	    (with-slots ((rf-m r) (vf-m v)) xf-cart-m ; mars final pos/vel
 	      (let ((xf-cost (* (+ (norme2 (- rf rf-m))
@@ -204,7 +216,7 @@
   "The probability of crossover for an organism."
   0.6)
 
-(defmethod OPERATE-ON-POPULATION
+#+null(defmethod OPERATE-ON-POPULATION
     ((plan rs-table-plan) old-population new-population 
      &AUX (new-organisms (organisms new-population))
        (p-cross (prob-cross plan))
@@ -241,6 +253,45 @@
 	 (setf (aref new-organisms i)
 	       (copy-organism-with-score org1 :new-population new-population)))))))
 
+(defmethod regenerate ((plan rs-table-plan) (old-pop rs-table-population))
+  ;; Show statistics & generation
+  (format t "Generation ~a: ~a~%" (generation-number (ecosystem old-pop)) (statistics old-pop))
+  ;; Population to store tournament selection
+  (let ((tour-pop (make-population (ecosystem old-pop) (class-of old-pop) :size (size old-pop)))
+	(p-cross (prob-cross plan))
+	(p-mutate (prob-mutate plan)))
+    ;; Elitism: include best organism in new population
+    (setf (aref (organisms tour-pop) 0) (copy-organism-with-score (best-organism old-pop) :new-population tour-pop))
+    ;; Perform tournament selection on the rest of the population
+    (dotimes (i (1- (size old-pop)))
+      (setf (aref (organisms tour-pop) (1+ i))
+	    (copy-organism (tournament-select-organism old-pop 2) :new-population tour-pop)))
+    ;; Perform crossover on tour-pop and put in cross-pop
+    (let ((cross-pop (make-population (ecosystem tour-pop) (class-of tour-pop) :size (size tour-pop))))
+      ;; Copy elite from tour-pop to cross-pop
+      (setf (aref (organisms cross-pop) 0) (copy-organism-with-score (aref (organisms tour-pop) 0) :new-population cross-pop))
+      (dotimes (i (1- (size tour-pop)))
+	;; When crossover happens
+	(if (> p-cross (random 1.0))
+	    (let* ((o1 (aref (organisms tour-pop) (1+ i)))
+		   (i2 (pick-random-organism-index tour-pop))
+		   (o2 (aref (organisms tour-pop) i2)))
+	      (when (zerop i2)
+		(cross-organisms 
+		 o1 o2 
+		 (setf (aref (organisms cross-pop) (1+ i))
+		       (copy-organism o1 :new-population cross-pop))
+		 (setf (aref (organisms cross-pop) i2)
+		       (copy-organism o2 :new-population cross-pop)))))
+	    ;; Else just copy over tour-pop organism
+	    (setf (aref (organisms cross-pop) (1+ i)) (copy-organism (aref (organisms tour-pop) (1+ i)) :new-population cross-pop))))
+      ;; Mutate cross-pop
+      (dotimes (i (1- (size cross-pop)))
+	(when (> p-mutate (random 1.0))
+	  (mutate-organism (aref (organisms cross-pop) (1+ i)))))
+      ;; Return new population
+      cross-pop)))
+
 (defvar *rs-table-ecosystem* nil "rs table ecosystem")
 
 (defun find-rs-table (&key (pop-size 20) (evaluation-limit 400) (generation-limit 10))
@@ -276,14 +327,14 @@
   (let* ((sail (organism-to-sail (find-best-organism ecosystem)))
 	 (traj-data (propagate sail :hmax-factor 100)))
     (write-cart-traj "earth-mars.dat" (to-cartesian-traj traj-data sail))
-    (write-cart-traj "earth.dat" (traj-to-planet traj-data *earth*))
-    (write-cart-traj "mars.dat" (traj-to-planet traj-data *mars*))))
+    (write-cart-traj "earth.dat" (traj-to-planet traj-data *origin*))
+    (write-cart-traj "mars.dat" (traj-to-planet traj-data *target*))))
 
 (defun final-results (ecosystem)
   (let* ((sail (organism-to-sail (find-best-organism ecosystem)))
 	 (traj (propagate sail :hmax-factor 100))
-	 (e-data (traj-to-planet traj *earth*))
-	 (m-data (traj-to-planet traj *mars*))
+	 (e-data (traj-to-planet traj *origin*))
+	 (m-data (traj-to-planet traj *target*))
 	 (xf-m (car (last m-data)))
 	 (c-traj (to-cartesian-traj traj sail))
 	 (x0 (first c-traj))
@@ -293,7 +344,7 @@
 	 (days (/ (- tf t0) 24 60 60))
 	 (xerr (- (second xf) (second xf-m))))
     (format t "Days: ~a~%Error: ~a~%" days xerr)
-    (format t "State error: ~a~%" (- (second (car (last traj))) (slot-value *mars* 'xks)))))
+    (format t "State error: ~a~%" (- (second (car (last traj))) (slot-value *target* 'xks)))))
 
 (defun evaluate-best (ecosystem)
   (let ((results (multiple-value-list (evaluate (find-best-organism ecosystem) (plan ecosystem))))
