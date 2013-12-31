@@ -196,18 +196,6 @@
 				*xf-weight*)))
 		(setf (score self) (/ (+ tof-cost xf-cost)))))))))))
 
-#+null(defmethod REGENERATE ((plan rs-table-plan) (old-pop rs-table-population)
-		       &AUX (new-pop (make-population (ecosystem old-pop)
-						      (class-of old-pop)
-						      :size (size old-pop))))
-  "Create a new generation from the previous one, and record statistics."
-  ;; Show statistics & generation
-  (format t "Generation ~a: ~a~%" (generation-number (ecosystem old-pop)) (statistics old-pop))
-  (setf (ecosystem new-pop) (ecosystem old-pop))
-  ;; selectively reproduce, crossover, and mutate
-  (operate-on-population plan old-pop new-pop)
-  new-pop)
-
 (defmethod PROB-MUTATE ((self rs-table-plan))
   "This is the probability of mutating an organism, not a single locus as is often used."
   0.0015)
@@ -215,43 +203,6 @@
 (defmethod PROB-CROSS ((self rs-table-plan))
   "The probability of crossover for an organism."
   0.6)
-
-#+null(defmethod OPERATE-ON-POPULATION
-    ((plan rs-table-plan) old-population new-population 
-     &AUX (new-organisms (organisms new-population))
-       (p-cross (prob-cross plan))
-       (p-mutate (+ p-cross (prob-mutate plan))))
-  (let ((selector (stochastic-remainder-preselect old-population)))
-    (do ((org1 (funcall selector) (funcall selector))
-	 org2
-	 (random# (geco-random-float 1.0) (geco-random-float 1.0))
-	 (i 0 (1+ i)))
-	((null org1))
-      (cond
-	((> p-cross random#)
-	 (if (and (setq org2 (funcall selector))
-		  (every #'(lambda (c-num)
-			     (< 1 (hamming-distance (nth c-num (genotype org1)) (nth c-num (genotype org2)))))
-			 '(0 1 2 3 4)))
-	     (uniform-cross-organisms
-	      org1 org2
-	      (setf (aref new-organisms i)
-		    (copy-organism org1 :new-population new-population))
-	      (setf (aref new-organisms (1+ i))
-		    (copy-organism org2 :new-population new-population)))
-	     (progn
-	       (setf (aref new-organisms i) (copy-organism-with-score org1 :new-population new-population))
-	       (when org2
-		 (setf (aref new-organisms (1+ i))
-		       (copy-organism-with-score org2 :new-population new-population)))))
-	 (incf i))
-	((> p-mutate random#)
-	 (mutate-organism
-	  (setf (aref new-organisms i)
-		(copy-organism org1 :new-population new-population))))
-	(t
-	 (setf (aref new-organisms i)
-	       (copy-organism-with-score org1 :new-population new-population)))))))
 
 (defmethod regenerate ((plan rs-table-plan) (old-pop rs-table-population))
   ;; Show statistics & generation
