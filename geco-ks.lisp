@@ -196,7 +196,7 @@
 				*xf-weight*)))
 		(setf (score self) (/ (+ tof-cost xf-cost)))))))))))
 
-(defmethod REGENERATE ((plan rs-table-plan) (old-pop rs-table-population)
+#+null(defmethod REGENERATE ((plan rs-table-plan) (old-pop rs-table-population)
 		       &AUX (new-pop (make-population (ecosystem old-pop)
 						      (class-of old-pop)
 						      :size (size old-pop))))
@@ -268,27 +268,26 @@
 	    (copy-organism (tournament-select-organism old-pop 2) :new-population tour-pop)))
     ;; Perform crossover on tour-pop and put in cross-pop
     (let ((cross-pop (make-population (ecosystem tour-pop) (class-of tour-pop) :size (size tour-pop))))
-      ;; Copy elite from tour-pop to cross-pop
-      (setf (aref (organisms cross-pop) 0) (copy-organism-with-score (aref (organisms tour-pop) 0) :new-population cross-pop))
       (dotimes (i (1- (size tour-pop)))
 	;; When crossover happens
 	(if (> p-cross (random 1.0))
 	    (let* ((o1 (aref (organisms tour-pop) (1+ i)))
 		   (i2 (pick-random-organism-index tour-pop))
 		   (o2 (aref (organisms tour-pop) i2)))
-	      (when (zerop i2)
-		(cross-organisms 
-		 o1 o2 
-		 (setf (aref (organisms cross-pop) (1+ i))
-		       (copy-organism o1 :new-population cross-pop))
-		 (setf (aref (organisms cross-pop) i2)
-		       (copy-organism o2 :new-population cross-pop)))))
+	      (cross-organisms 
+	       o1 o2 
+	       (setf (aref (organisms cross-pop) (1+ i))
+		     (copy-organism o1 :new-population cross-pop))
+	       (setf (aref (organisms cross-pop) i2)
+		     (copy-organism o2 :new-population cross-pop))))
 	    ;; Else just copy over tour-pop organism
 	    (setf (aref (organisms cross-pop) (1+ i)) (copy-organism (aref (organisms tour-pop) (1+ i)) :new-population cross-pop))))
       ;; Mutate cross-pop
       (dotimes (i (1- (size cross-pop)))
 	(when (> p-mutate (random 1.0))
 	  (mutate-organism (aref (organisms cross-pop) (1+ i)))))
+      ;; Copy elite from tour-pop to cross-pop
+      (setf (aref (organisms cross-pop) 0) (copy-organism-with-score (aref (organisms tour-pop) 0) :new-population cross-pop))
       ;; Return new population
       cross-pop)))
 
