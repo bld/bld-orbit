@@ -216,29 +216,30 @@
     ;; Perform tournament selection on the rest of the population
     (dotimes (i (1- (size old-pop)))
       (setf (aref (organisms tour-pop) (1+ i))
-	    (copy-organism (tournament-select-organism old-pop 2) :new-population tour-pop)))
+	    (copy-organism-with-score (tournament-select-organism old-pop 2) :new-population tour-pop)))
     ;; Perform crossover on tour-pop and put in cross-pop
     (let ((cross-pop (make-population (ecosystem tour-pop) (class-of tour-pop) :size (size tour-pop))))
+      ;; Copy elite from tour-pop to cross-pop
+      (setf (aref (organisms cross-pop) 0) (copy-organism-with-score (aref (organisms tour-pop) 0) :new-population cross-pop))
+
       (dotimes (i (1- (size tour-pop)))
 	;; When crossover happens
 	(if (> p-cross (random 1.0))
-	    (let* ((o1 (aref (organisms tour-pop) (1+ i)))
-		   (i2 (pick-random-organism-index tour-pop))
-		   (o2 (aref (organisms tour-pop) i2)))
+	    (let* ((o1 (aref (organisms tour-pop) (1+ i))) ; 1st org to cross
+		   (i2 (1+ (random (1- (size tour-pop))))) ; index of 2nd org to cross
+		   (o2 (aref (organisms tour-pop) i2))) ; 2nd org to cross
 	      (cross-organisms 
-	       o1 o2 
+	       o1 o2 ; parents
 	       (setf (aref (organisms cross-pop) (1+ i))
-		     (copy-organism o1 :new-population cross-pop))
+		     (copy-organism-with-score o1 :new-population cross-pop))
 	       (setf (aref (organisms cross-pop) i2)
-		     (copy-organism o2 :new-population cross-pop))))
+		     (copy-organism-with-score o2 :new-population cross-pop))))
 	    ;; Else just copy over tour-pop organism
-	    (setf (aref (organisms cross-pop) (1+ i)) (copy-organism (aref (organisms tour-pop) (1+ i)) :new-population cross-pop))))
+	    (setf (aref (organisms cross-pop) (1+ i)) (copy-organism-with-score (aref (organisms tour-pop) (1+ i)) :new-population cross-pop))))
       ;; Mutate cross-pop
       (dotimes (i (1- (size cross-pop)))
 	(when (> p-mutate (random 1.0))
 	  (mutate-organism (aref (organisms cross-pop) (1+ i)))))
-      ;; Copy elite from tour-pop to cross-pop
-      (setf (aref (organisms cross-pop) 0) (copy-organism-with-score (aref (organisms tour-pop) 0) :new-population cross-pop))
       ;; Return new population
       cross-pop)))
 
