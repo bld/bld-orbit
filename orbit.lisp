@@ -475,62 +475,52 @@ Columns:
 
 ;;; Classical orbital element conversion
 
-;; position & velocity to classical orbit elements
-(defun energy-rv (r v mu)
-  "Orbit energy from position, velocity, & gravitational parameter"
-  (- (/ (* v v) 2)
-     (/ mu r)))
-(defun sma-rv (r v mu)
-  "semi-major axis from position, velocity, & gravitational parameter"
-  (/ mu (* -2 (energy-rv r v mu))))
-(defun eccv-rv (rv vv mu)
-  "eccentricity vector from position, velocity, & gravitational parameter"
-  (/ (- (* rv (- (norme2 vv) (/ mu (norme rv))))
-	(* vv (scalar (*i rv vv))))
-       mu))
-(defun mombv-rv (rv vv)
-  "orbital momentum bivector from position & velocity"
-  (*o rv vv))
-(defun nodev-rv (mombv basis)
-  "ascending node vector from momentum and basis"
-  (- (*i (third basis) mombv)))
-(defun inc-rv (mombv basis)
-  "inclination from momentum bivector and basis"
-  (acos (scalar (dual (*o (third basis) (unitg mombv))))))
-(defun lan-rv (nodev basis)
-  "Longitude of ascending node from node vector and basis"
-  (let ((tmp (atan (scalar (*i nodev (second basis)))
-		   (scalar (*i nodev (first basis))))))
-    (if (< tmp 0) (+ tmp (* 2 pi)) tmp)))	 
-(defun aop-rv (nodev eccv mombv)
-  "argument of perigee from node vector, eccentricity vector, and momentum bivector"
-  (let* ((n (unitg nodev))
-	 (e (unitg eccv))
-	 (h (unitg mombv))
-	 (ov (*i n h))
-	 (tmp (atan (scalar (*i e ov)) (scalar (*i e n)))))
-    (if (< tmp 0) (+ tmp (* 2 pi)) tmp)))
-(defun truan-rv (eccv rv mombv)
-  "true anomaly from eccentricity, position, and velocity vectors"
-  (let* ((e (unitg eccv))
-	 (h (unitg mombv))
-	 (ruv (unitg rv))
-	 (ov (*i e h))
-	 (tmp (atan (scalar (*i ruv ov))
-		    (scalar (*i ruv e)))))
-    (if (< tmp 0) (+ tmp (* 2 pi)) tmp)))
 (defun rv2coe (rv vv mu basis)
   "Return classical orbital elements given position & velocity vectors, gravitational parameter, and a list of 3 basis vectors"
-  (let* ((mombv (mombv-rv rv vv))
-	 (nodev (nodev-rv mombv basis))
-	 (eccv (eccv-rv rv vv mu)))
-    (make-hash
-     :sma (sma-rv (norme rv) (norme vv) mu)
-     :ecc (norme eccv)
-     :inc (inc-rv mombv basis)
-     :lan (raan-rv nodev basis)
-     :aop (aop-rv nodev eccv mombv)
-     :truan (truan-rv eccv rv mombv))))
+  (flet ((energy-rv (r v mu) ; Orbit energy from position, velocity, & gravitational parameter
+	   (- (/ (* v v) 2)
+	      (/ mu r)))
+	 (sma-rv (r v mu) ; semi-major axis from position, velocity, & gravitational parameter
+	   (/ mu (* -2 (energy-rv r v mu))))
+	 (eccv-rv (rv vv mu) ; eccentricity vector from position, velocity, & gravitational parameter
+	   (/ (- (* rv (- (norme2 vv) (/ mu (norme rv))))
+		 (* vv (scalar (*i rv vv))))
+	      mu))
+	 (mombv-rv (rv vv) ; orbital momentum bivector from position & velocity
+	   (*o rv vv))
+	 (nodev-rv (mombv basis) ; ascending node vector from momentum and basis
+	   (- (*i (third basis) mombv)))
+	 (inc-rv (mombv basis) ; inclination from momentum bivector and basis
+	   (acos (scalar (dual (*o (third basis) (unitg mombv))))))
+	 (lan-rv (nodev basis) ; Longitude of ascending node from node vector and basis
+	   (let ((tmp (atan (scalar (*i nodev (second basis)))
+			    (scalar (*i nodev (first basis))))))
+	     (if (< tmp 0) (+ tmp (* 2 pi)) tmp)))
+	 (aop-rv (nodev eccv mombv) ; argument of perigee from node vector, eccentricity vector, and momentum bivector
+	   (let* ((n (unitg nodev))
+		  (e (unitg eccv))
+		  (h (unitg mombv))
+		  (ov (*i n h))
+		  (tmp (atan (scalar (*i e ov)) (scalar (*i e n)))))
+	     (if (< tmp 0) (+ tmp (* 2 pi)) tmp)))
+	 (truan-rv (eccv rv mombv) ; true anomaly from eccentricity, position, and velocity vectors"
+	   (let* ((e (unitg eccv))
+		  (h (unitg mombv))
+		  (ruv (unitg rv))
+		  (ov (*i e h))
+		  (tmp (atan (scalar (*i ruv ov))
+			     (scalar (*i ruv e)))))
+	     (if (< tmp 0) (+ tmp (* 2 pi)) tmp))))
+    (let* ((mombv (mombv-rv rv vv))
+	   (nodev (nodev-rv mombv basis))
+	   (eccv (eccv-rv rv vv mu)))
+      (make-hash
+       :sma (sma-rv (norme rv) (norme vv) mu)
+       :ecc (norme eccv)
+       :inc (inc-rv mombv basis)
+       :lan (raan-rv nodev basis)
+       :aop (aop-rv nodev eccv mombv)
+       :truan (truan-rv eccv rv mombv)))))
 
 (defun coe2rv (sma ecc inc lan aop truan mu basis)
   "Convert cassical orbital elements to position & velocity vectors.
