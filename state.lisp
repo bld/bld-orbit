@@ -12,6 +12,8 @@
   (;; State slots
    (r :initarg :r :accessor r :documentation "Position vector")
    (v :initarg :v :accessor v :documentation "Velocity vector")
+   ;; Flag if state is a derivative
+   (derivp :initarg :derivp :accessor derivp :documentation "Flag indicating if this state a derivative")
    ;; Parameter slots
    (sc :initarg :sc :accessor sc :documentation "Spacecraft data")
    ;; Derived value slots
@@ -33,15 +35,17 @@
 (defstatearithmetic cartstate (r v) :oslots (sc))
 
 (defmethod initialize-instance :after ((x cartstate) &key)
-  (with-slots (r sc rm2 rm ru g p bframe rb pframe rp a) x
-    (setf rm2 (norme2 r))
-    (setf rm (sqrt rm2))
-    (setf ru (unitg r))
-    (setf g (funcall (gfun sc) x))
-    (setf p (solar-pressure x))
-    (setf bframe (funcall (bfun sc) x))
-    (setf rb (recoverrotor bframe (iframe sc)))
-    (multiple-value-bind (pframe-tmp rp-tmp) (funcall (pfun sc) x)
-      (setf pframe pframe-tmp)
-      (setf rp rp-tmp))
-    (setf a (funcall (afun sc) x))))
+  "For true states (not derivatives) set commonly derived values"
+  (unless (slot-boundp x 'derivp)
+    (with-slots (r sc rm2 rm ru g p bframe rb pframe rp a) x
+      (setf rm2 (norme2 r))
+      (setf rm (sqrt rm2))
+      (setf ru (unitg r))
+      (setf g (funcall (gfun sc) x))
+      (setf p (solar-pressure x))
+      (setf bframe (funcall (bfun sc) x))
+      (setf rb (recoverrotor bframe (iframe sc)))
+      (multiple-value-bind (pframe-tmp rp-tmp) (funcall (pfun sc) x)
+	(setf pframe pframe-tmp)
+	(setf rp rp-tmp))
+      (setf a (funcall (afun sc) x)))))

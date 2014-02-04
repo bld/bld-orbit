@@ -6,7 +6,7 @@
 
 (defun orbit-frame (x)
   "Orbit reference from from sail-sun vector and inertial reference frame"
-  (let* ((o3 (unitg (r x)))
+  (let* ((o3 (ru x))
 	 (o1 (unitg (*x (third (iframe (sc x))) o3)))
 	 (o2 (*x o3 o1)))
     (list o1 o2 o3)))

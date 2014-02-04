@@ -2,8 +2,9 @@
 
 (defmethod eom (tm (x cartstate) &optional p)
   (with-slots (v sc a g) x
-    (make-instance 
-     'cartstate 
+    (make-instance
+     'cartstate
      :r v
      :v (+ a g)
-     :sc sc)))
+     :sc sc
+     :derivp t))) ; this is a derivative: don't calculate derived values
