@@ -1,9 +1,9 @@
 (in-package :bld-orbit2)
 
 (defmethod eom (tm (x cartstate) &optional p)
-  (with-slots (r v sc) x
+  (with-slots (v sc a g) x
     (make-instance 
      'cartstate 
-     :r (v x) 
-     :v (funcall (gfun sc) x) 
+     :r v
+     :v (+ a g)
      :sc sc)))
