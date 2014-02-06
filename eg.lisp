@@ -3,7 +3,8 @@
 (defparameter *eg-sc*
   (make-instance 
    'sc 
-   :cb *sun* 
+   :cb *sun*
+   :nb nil
    :gfun #'gravity))
 
 (defparameter *eg-sail*

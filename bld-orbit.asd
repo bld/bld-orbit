@@ -7,8 +7,16 @@
   :serial t
   :components
   ((:file "package")
+   (:file "constants")
+   (:file "frames")
+   (:file "force")
+   (:file "state")
+   (:file "spacecraft")
    (:file "orbit")
    (:file "body")
    (:file "eom")
+   (:file "propagate")
+   (:file "export")
    (:file "examples")
-   (:file "geco-ks")))
+   (:file "geco-ks")
+   ))

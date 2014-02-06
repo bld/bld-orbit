@@ -85,7 +85,6 @@ SUN: Sun object"
        :e (* rm (scalar (*i v f)))
        :tm rm))))
 
-
 (defun sail-frame-sun-normal (s x sc)
   "Point sail at the sun"
   (with-slots (r v) (to-cartesian x s sc)

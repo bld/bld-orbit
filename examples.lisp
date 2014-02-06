@@ -356,7 +356,7 @@
 
 (defparameter *sail-3d-eom2-examples*
   (make-hash*
-   :cart-kepler 
+   :cart-kepler
    (make-instance
     'sail
     :eom #'eom2
@@ -371,15 +371,15 @@
     :basis *j2000*
     :t0 (coerce (encode-universal-time 0 0 0 16 12 2013 0) 'double-float)
     :tf (coerce (encode-universal-time 0 0 0 17 12 2013 0) 'double-float)
+    :rs (re3 :s 1)
+    :outfile "sail-3d-cart-geo-kepler-eg.dat"
     :x0 (let* ((w (/ (* 2d0 pi) 86164d0))
 	       (r (expt (/ (slot-value *earth* 'mu) (expt w 2d0)) 1/3))
 	       (v (* w r)))
 	  (make-instance 
 	   'cartstate 
 	   :r (* r (ve3 :e1 1))
-	   :v (* v (unitg (ve3 :e2 1 :e3 0.1)))))
-    :rs (re3 :s 1)
-    :outfile "sail-3d-cart-geo-kepler-eg.dat")
+	   :v (* v (unitg (ve3 :e2 1 :e3 0.1))))))
    :cart-normal
    (make-instance
     'sail
@@ -395,15 +395,15 @@
     :basis *j2000*
     :t0 (coerce (encode-universal-time 0 0 0 16 12 2013 0) 'double-float)
     :tf (coerce (encode-universal-time 0 0 0 17 12 2013 0) 'double-float)
+    :rs (re3 :s 1)
+    :outfile "sail-3d-cart-geo-normal-eg.dat"
     :x0 (let* ((w (/ (* 2d0 pi) 86164d0))
 	       (r (expt (/ (slot-value *earth* 'mu) (expt w 2d0)) 1/3))
 	       (v (* w r)))
 	  (make-instance 
 	   'cartstate 
 	   :r (* r (ve3 :e1 1))
-	   :v (* v (unitg (ve3 :e2 1 :e3 0.1)))))
-    :rs (re3 :s 1)
-    :outfile "sail-3d-cart-geo-normal-eg.dat")
+	   :v (* v (unitg (ve3 :e2 1 :e3 0.1))))))
    :cart-solar-kepler
    (let ((t0 (coerce (encode-universal-time 0 0 0 16 12 2013 0) 'double-float))
 	 (tf (coerce (encode-universal-time 0 0 0 16 12 2014 0) 'double-float)))
