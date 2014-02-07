@@ -13,7 +13,7 @@
    (r :initarg :r :accessor r :documentation "Position vector")
    (v :initarg :v :accessor v :documentation "Velocity vector")
    ;; Flag if state is a derivative
-   (derivp :initarg :derivp :accessor derivp :documentation "Flag indicating if this state a derivative")
+   (derivp :initarg :derivp :accessor derivp :documentation "Flag indicating if this is a derivative, and not calculate derived values")
    ;; Parameter slots
    (sc :initarg :sc :accessor sc :documentation "Spacecraft data")
    (tm :initarg :tm :accessor tm :documentation "Stores time variable in state")
@@ -36,7 +36,8 @@
 (defstatearithmetic cartstate (r v) :oslots (sc tm))
 
 (defmethod initialize-instance :after ((x cartstate) &key)
-  "For true states (not derivatives) set commonly derived values"
+  "For true states (not derivatives) set commonly derived values if
+the SC slot is bound."
   (unless (slot-boundp x 'derivp)
     (with-slots (r sc rm2 rm ru g p bframe rb pframe rp a) x
       (setf rm2 (norme2 r))

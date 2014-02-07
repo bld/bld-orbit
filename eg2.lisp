@@ -17,6 +17,7 @@
    :pfun #'fixed
    :afun #'ideal-sail-acc
    :bfun #'orbit-frame
+   :nfun #'third
    :iframe *j2000*
    :rs (rotor (bve3 :e1e3 -1) (atan (sqrt (/ 2))))))
 
@@ -30,7 +31,10 @@
    :pfun #'table
    :afun #'ideal-sail-acc
    :bfun #'orbit-frame
+   :nfun #'third
    :iframe *j2000*
    :rs (let ((year (convert-unit 'years 'seconds)))
-	 (list (list year (re3 :s 1))
-	       (list (* 2 year) (rotor (bve3 :e1e3 -1) (atan (sqrt (/ 2)))))))))
+	 (list 
+	  (list (* 1d0 year) (rotor (bve3 :e1e3 -1d0) (/ pi 2)))
+	  (list (* 2d0 year) (rotor (bve3 :e1e3 -1d0) (atan (sqrt (/ 2d0)))))
+	  ))))

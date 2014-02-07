@@ -46,5 +46,5 @@ a sail attitude specified by RS lookup table in SC object"
   "Force on an ideal solar sail of given state"
   (with-slots (sc ru p pframe) x
     (with-slots (area mass) sc
-      (let ((n (third pframe)))
+      (let ((n (funcall (nfun sc) pframe)))
 	(/ (* 2 p area (expt (scalar (*i ru n)) 2) n) mass)))))

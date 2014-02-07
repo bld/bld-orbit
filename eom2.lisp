@@ -8,4 +8,4 @@
      :v (+ a g)
      :sc sc
      :tm tm
-     :derivp t))) ; this is a derivative: don't calculate derived values
+     :derivp t)))
