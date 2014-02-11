@@ -18,5 +18,6 @@
    (:file "propagate")
    (:file "export")
    (:file "examples")
+   (:file "examples-old")
    (:file "geco-ks")
    ))
