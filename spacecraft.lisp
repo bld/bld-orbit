@@ -17,7 +17,7 @@
    (tf :initarg :tf :initform (* 2 pi) :documentation "Final time")
    (x0 :initarg :x0 :initform (make-instance 'cartstate :r (ve2 :e1 1) :v (ve2 :e2 1)))
    (rs :initarg :rs :initform (re2 :s 1d0) :documentation "Sail orientation rotor wrt orbital position frame")
-   (rs-table :initarg :rs-table :initform (re2 :s 1d0) :documentation "Sail orientation rotor wrt orbital position frame")
+   (rs-table :initarg :rs-table :documentation "Sail orientation rotor wrt orbital position frame")
    (outfile :initarg :outfile :initform "sail-2d-cart-kepler-eg.dat" :documentation "Output filename"))
   (:documentation "Solar sail orbit problem. Default is 2D Kepler with circular orbit, and units of AU and TU."))
 

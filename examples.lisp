@@ -209,7 +209,7 @@
       :cb *sun*
       :sun *sun*
       :accfun #'sail-flat-ideal-acc
-      :pointfun #'sail-frame-sun-table
+      :pointfun #'sail-frame-sun-fixed
       :lightness 0d0
       :area 1200d-6
       :mass 45d0
