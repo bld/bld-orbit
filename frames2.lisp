@@ -7,7 +7,7 @@
 (defun orbit-frame (x)
   "Orbit reference from from sail-sun vector and inertial reference frame"
   (let* ((o3 (ru x))
-	 (o1 (unitg (*x (third (iframe (sc x))) o3)))
+	 (o1 (unitg (*x (third (iframe x)) o3)))
 	 (o2 (*x o3 o1)))
     (list o1 o2 o3)))
 
@@ -57,3 +57,9 @@
       ((= (dimension r) (dimension v) 3)
        (list x y (dual h)))
       (t (error "R and V must be 2 or 3 dimensional")))))
+
+(defun rv-normal (x)
+  (first (pframe x)))
+
+(defun o-normal (x)
+  (third (pframe x)))

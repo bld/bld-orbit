@@ -1,40 +1,20 @@
 (in-package :bld-orbit2)
 
-(defparameter *eg-sc*
-  (make-instance 
-   'sc 
-   :cb *sun*
-   :nb nil
-   :gfun #'gravity))
-
-(defparameter *eg-sail-fixed*
+(defparameter *eg-sail-fixed-x0*
   (make-instance
-   'sail
+   'cartstate
+   :r (ve3 :e1 *au*)
+   :v (ve3 :e2 (sqrt (/ (mu *sun*) *au*)))
    :cb *sun*
    :gfun #'gravity
    :area 1200
    :mass 50
    :pfun #'fixed
    :afun #'ideal-sail-acc
-   :bfun #'orbit-frame
-   :nfun #'third
+   :bfun #'rv-frame
+   :nfun #'rv-normal
    :iframe *j2000*
-   :rs (rotor (bve3 :e1e3 -1) (atan (sqrt (/ 2))))))
-
-(defparameter *eg-sail-table*
-  (make-instance
-   'sail
-   :cb *sun*
-   :gfun #'gravity
-   :area 1200
-   :mass 50
-   :pfun #'table
-   :afun #'ideal-sail-acc
-   :bfun #'orbit-frame
-   :nfun #'third
-   :iframe *j2000*
-   :rs (let ((year (convert-unit 'years 'seconds)))
-	 (list 
-	  (list (* 1d0 year) (rotor (bve3 :e1e3 -1d0) (/ pi 2)))
-	  (list (* 2d0 year) (rotor (bve3 :e1e3 -1d0) (atan (sqrt (/ 2d0)))))
-	  ))))
+   :tm 0
+   :rs (rotor (bve3 :e1e2 1) (atan (sqrt (/ 2))))
+   ;;:rs (re3 :s 1)
+   ))

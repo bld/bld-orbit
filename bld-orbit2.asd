@@ -10,6 +10,7 @@
    (:file "constants2")
    (:file "frames2")
    (:file "state2")
+   (:file "state2b")
    (:file "spacecraft2")
    (:file "body2")
    (:file "force2")
