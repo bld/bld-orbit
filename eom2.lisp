@@ -1,6 +1,7 @@
 (in-package :bld-orbit2)
 
 (defmethod eom (tm (x cartstate) &optional p)
+  (setf (tm x) tm)
   (make-instance
    'cartstate
    :r (v x)

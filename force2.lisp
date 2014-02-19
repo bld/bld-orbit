@@ -32,7 +32,3 @@ attitude specified by RS slot"
   "Force on an ideal solar sail of given state"
   (/ (* 2 (p x) (area x) (expt (scalar (*i (ru x) (n x))) 2) (n x))
      (mass x)))
-
-;;; Acceleration
-(defmethod a ((x cartstate))
-  (funcall (afun x) x))
