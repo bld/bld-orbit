@@ -1,16 +1,4 @@
 ;;; Solar sail dynamics using Lamba-Over-Let Pandoric closures
-(defpackage :sail-lol
-  (:use :cl :lol :bld-ga :bld-e2 :bld-e3 :bld-ode :bld-utils :anaphora)
-  (:import-from :alexandria plist-hash-table)
-  (:shadowing-import-from
-   :bld-gen
-   + - * / expt
-   sin cos tan
-   atan asin acos
-   sinh cosh tanh
-   asinh acosh atanh
-   log exp sqrt abs
-   min max signum))
 
 (in-package :sail-lol)
 
@@ -18,126 +6,124 @@
   "Infinity norm of geometric algebra state variable"
   (norminf x))
 
+;; Constants
+
+(defparameter *c* 2.99792458e8 "Speed of light (m/s)")
+
+;; Derived values
+
+(defderived rm2 (norme2 (gethash :r x)))
+(defderived rm (sqrt (rm2 self x)))
+(defderived ru (/ (gethash :r x) (rm self x)))
+
 ;; Bodies
 
-(let ((mu 1.327585d20)
-      (ls 1361d0))
-  (defpfun sun (tm) (self mu ls)
-    (ve3))
-  (defpfun sun2d (tm) (self mu ls)
+(let* ((mu 1.327585d20)
+       (ls 1361d0)
+       (au 1.4959787d11)
+       (au2 (expt au 2)))
+  (defpfun sun (tm) (self mu ls au au2)
     (ve2)))
 
-(let ((mu 3.9873878d14)
-      (au 1.4959787d11))
-  (defpfun earth (tm) (self mu au)
-    (ve3 :e1 au))
-  (defpfun earth2d (tm) (self mu ls)
-    (ve2 :e1 au)))
+;; Frame functions
+
+(defun rv-basis-2d (x)
+  (lethash (r v) x
+    (let* ((h (unitg (*o r v)))
+	   (x (unitg r))
+	   (y (unitg (*i r h))))
+      (list x y))))
+
+(defun rv-basis-3d (x)
+  (lethash (r v) x
+    (let* ((h (unitg (*o r v)))
+	   (x (unitg r))
+	   (y (unitg (*i r h))))
+      (list x y (dual h)))))
 
 ;; Forces
 
-(defpan gravity (x) (cb)
-  (with-pandoric (mu) cb
-    (lethash (r) x
-      (- (/ (* mu (unitg r)) (norme2 r))))))
+(defpan solar-pressure (tm x) (self ls au2)
+  (lethash (r) x
+    (let ((rsun (funcall self tm)))
+      (/ (* ls (/ au2 (norme2 (- r rsun)))) *c*))))
 
-(defpan ideal-sail-normal (x) (cb lightness)
-  (with-pandoric (mu) cb
-    (lethash (r v) x
-      (* lightness mu (/ (norme2 r))
-	 (unitg r)))))
+(defpan gravity (tm x) (self mu)
+  (lethash (r) x
+    (let* ((rcb (funcall self tm))
+	   (rcb-sc (- r rcb)))
+      (- (/ (* mu (unitg rcb-sc)) (norme2 rcb-sc))))))
 
-(defpan ideal-sail-fixed (x) (lightness cb rs)
-  (with-pandoric (mu) cb
-    (lethash (r) x
-      (let* ((ru (unitg r))
-	     (n (rotateg ru rs)))
-	(* lightness mu (/ (norme2 r))
-	   (expt (scalar (*i ru n)) 2)
-	   n)))))
+(defpan ideal-sail-normal (tm x) (cb mass area)
+  (lethash (r) x
+    (/ (* 2 (solar-pressure cb tm x) (unitg r) area)
+       mass)))
+
+(defpan ideal-sail-fixed (tm x) (mass area cb rs)
+  (lethash (r) x
+    (let* ((ru (unitg r))
+	   (n (rotateg ru rs)))
+      (/ (* 2 (solar-pressure cb tm x) area (expt (scalar (*i ru n)) 2) n)
+	 mass))))
 
 ;; Cartesian equations of motion
 
-(defpan cart-kepler-eom (x) (self gfun)
+(defpan cart-kepler-eom (tm x) (cb gfun)
   (lethash (r v) x
-    (make-hash
-     :r v
-     :v (funcall gfun x self))))
+    (let ((dx (make-hash
+	       :r v
+	       :v (funcall gfun cb tm x))))
+      dx)))
 
-(defpan cart-eom (x) (self gfun afun)
+(defpan cart-eom (tm x) (self gfun afun cb)
   (lethash (r v) x
-    (make-hash
-     :r v
-     :v (+ (funcall gfun x self)
-	   (funcall afun x self)))))
+    (let ((dx (make-hash
+	       :r v
+	       :v (+ (funcall gfun cb tm x)
+		     (funcall afun self tm x)))))
+      dx)))
 
 ;; 2D cartesian examples
 
-(let* ((cb #'sun2d)
-       (t0 0)
-       (tf (* 60 60 24 365.25))
-       (x0 (make-hash :r (ve2 :e1 (get-pandoric #'earth 'au)) :v (ve2 :e2 (sqrt (/ (get-pandoric #'sun 'mu) (get-pandoric #'earth 'au))))))
-       (fname "lol-2d-kepler-eg.dat")
-       (gfun #'gravity))
-  (defpfun 2d-kepler-eg (tm x &optional p) (self t0 tf x0 fname gfun cb)
-    (cart-kepler-eom x self)))
+(defparameter *x02dcart* (make-hash :r (ve2 :e1 (get-pandoric #'sun 'au)) :v (ve2 :e2 (sqrt (/ (get-pandoric #'sun 'mu) (get-pandoric #'sun 'au))))))
 
-(let* ((cb #'sun2d)
-       (lightness 0.1)
-       (t0 0)
-       (tf (* 60 60 24 365.25))
-       (x0 (make-hash :r (ve2 :e1 (get-pandoric #'earth 'au)) :v (ve2 :e2 (sqrt (/ (get-pandoric #'sun 'mu) (get-pandoric #'earth 'au))))))
-       (fname "lol-2d-normal-eg.dat")
-       (gfun #'gravity)
-       (afun #'ideal-sail-normal))
-  (defpfun 2d-normal-eg (tm x &optional p) (self lightness t0 tf x0 fname gfun afun cb)
-    (cart-eom x self)))
+(let ((cb #'sun)
+      (t0 0)
+      (tf (* 60 60 24 365.25))
+      (x0 *x02dcart*)
+      (fname "lol-2d-kepler-eg.dat")
+      (gfun #'gravity)
+      (derived (make-hash-table)))
+  (defpfun 2d-kepler-eg (tm x &optional p) (self t0 tf x0 fname gfun cb derived)
+    (cart-kepler-eom self tm x)))
 
-(let ((cb #'sun2d)
-      (lightness 0.1)
+(let ((cb #'sun)
+      (mass 52)
+      (area 1260)
+      (t0 0)
+      (tf (* 60 60 24 365.25))
+      (x0 *x02dcart*)
+      (fname "lol-2d-normal-eg.dat")
+      (gfun #'gravity)
+      (afun #'ideal-sail-normal)
+      (bfun #'rv-basis-2d)
+      (derived (make-hash-table)))
+  (defpfun 2d-normal-eg (tm x &optional p) (self mass area t0 tf x0 fname gfun afun cb)
+    (cart-eom self tm x)))
+
+(let ((cb #'sun)
+      (mass 52)
+      (area 1260)
       (rs (rotor (bve2 :e1e2 1) (atan (/ (sqrt 2)))))
       (t0 0)
       (tf (* 60 60 24 365.25))
-      (x0 (make-hash :r (ve2 :e1 (get-pandoric #'earth 'au)) :v (ve2 :e2 (sqrt (/ (get-pandoric #'sun 'mu) (get-pandoric #'earth 'au))))))
+      (x0 *x02dcart*)
       (fname "lol-2d-fixed-eg.dat")
       (gfun #'gravity)
-      (afun #'ideal-sail-fixed))
-  (defpfun 2d-fixed-eg (tm x &optional p) (self lightness rs t0 tf x0 fname gfun afun cb)
-    (cart-eom x self)))
-
-;; 3D cartesian examples
-
-(let* ((cb #'sun2d)
-       (t0 0)
-       (tf (* 60 60 24 365.25))
-       (x0 (make-hash :r (ve3 :e1 (get-pandoric #'earth 'au)) :v (ve3 :e2 (sqrt (/ (get-pandoric #'sun 'mu) (get-pandoric #'earth 'au))))))
-       (fname "lol-3d-kepler-eg.dat")
-       (gfun #'gravity))
-  (defpfun 3d-kepler-eg (tm x &optional p) (self t0 tf x0 fname gfun cb)
-    (cart-kepler-eom x self)))
-
-(let* ((cb #'sun2d)
-       (lightness 0.1)
-       (t0 0)
-       (tf (* 60 60 24 365.25))
-       (x0 (make-hash :r (ve3 :e1 (get-pandoric #'earth 'au)) :v (ve3 :e2 (sqrt (/ (get-pandoric #'sun 'mu) (get-pandoric #'earth 'au))))))
-       (fname "lol-3d-normal-eg.dat")
-       (gfun #'gravity)
-       (afun #'ideal-sail-normal))
-  (defpfun 3d-normal-eg (tm x &optional p) (self lightness t0 tf x0 fname gfun afun cb)
-    (cart-eom x self)))
-
-(let ((cb #'sun2d)
-      (lightness 0.1)
-      (rs (rotor (bve3 :e1e2 1) (atan (/ (sqrt 2)))))
-      (t0 0)
-      (tf (* 60 60 24 365.25))
-      (x0 (make-hash :r (ve3 :e1 (get-pandoric #'earth 'au)) :v (ve3 :e2 (sqrt (/ (get-pandoric #'sun 'mu) (get-pandoric #'earth 'au))))))
-      (fname "lol-3d-fixed-eg.dat")
-      (gfun #'gravity)
-      (afun #'ideal-sail-fixed))
-  (defpfun 3d-fixed-eg (tm x &optional p) (self lightness rs t0 tf x0 fname gfun afun cb)
-    (cart-eom x self)))
+      (afun #'ideal-sail-fixed)
+      (bfun #'rv-basis-2d))
+  (defpfun 2d-fixed-eg (tm x &optional p) (self mass area rs t0 tf x0 fname gfun afun cb)
+    (cart-eom self tm x)))
 
 ;; Export
 
