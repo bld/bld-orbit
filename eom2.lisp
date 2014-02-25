@@ -3,7 +3,7 @@
 (defmethod eom (tm (x cartstate) &optional p)
   (setf (tm x) tm)
   (make-instance
-   'cartstate
+   (type-of x)
    :r (v x)
    :v (+ (a x) (g x))
    :cb (cb x)
