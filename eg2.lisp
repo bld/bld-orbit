@@ -1,6 +1,6 @@
 (in-package :bld-orbit2)
 
-#+null(defparameter *eg-sail-fixed-x0*
+(defparameter *eg-sail-fixed-x0*
   (make-instance
    'cartstate
    :r (ve3 :e1 *au*)
@@ -31,4 +31,5 @@
     :iframe *j2000*
     :rs (rotor (bve3 :e1e2 1) (atan (sqrt (/ 2)))))
 
-(defparameter *eg-sail-fixed-x0* (make-instance 'eg-sail-fixed :tm 0 :r (ve3 :e1 *au*) :v (ve3 :e2 (sqrt (/ (mu *sun*) *au*)))))
+(defparameter *eg-sail-fixed-x0-2* (make-instance 'eg-sail-fixed :tm 0 :r (ve3 :e1 *au*) :v (ve3 :e2 (sqrt (/ (mu *sun*) *au*)))))
+x

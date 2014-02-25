@@ -30,10 +30,10 @@
    (a :documentation "External acceleration"))
   (:documentation "Cartesian state class"))
 
-#+null(defmethod print-object ((x cartstate) stream)
+(defmethod print-object ((x cartstate) stream)
   (format stream "#<CARTSTATE :r ~a :v ~a>" (r x) (v x)))
 
-#+null(defstatearithmetic cartstate (r v) :oslots (cb gfun area mass pfun afun bfun nfun iframe rs tm))
+(defstatearithmetic cartstate (r v) :oslots (cb gfun area mass pfun afun bfun nfun iframe rs tm))
 
 (def-derived x cartstate
   (rm2 (norme2 (r x)))
