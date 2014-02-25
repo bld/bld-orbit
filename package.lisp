@@ -10,4 +10,4 @@
     log exp sqrt abs
     min max signum)
   (:import-from :bld-utils :make-hash :make-hash* :with-keys :maphash2 :lethash)
-  (:import-from :alexandria plist-hash-table))
+  (:import-from :alexandria plist-hash-table make-keyword))
