@@ -19,7 +19,7 @@ Includes:
 
 (defgeneric time-of (s x) (:documentation "Universal time"))
 
-(defgeneric eom (s x &optional param) (:documentation "Equations of motion given independent variable S & state X"))
+(defgeneric eom (s x param) (:documentation "Equations of motion given independent variable S & state X"))
 
 (defgeneric to-cartesian (x s sc) (:documentation "Convert a state to cartesian state"))
 

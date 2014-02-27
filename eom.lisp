@@ -7,7 +7,7 @@
 (defgeneric dxds (s x sc f g-cb))
 
 (defmethod eom2 (s x sc)
-  "Equations of motion for any "
+  "Equations of motion for any state"
   (with-slots (cb sun pointfun gfun accfun) sc
     ;; position & velocity of SC relative to central body
     (with-slots (r v) (to-cartesian x s sc)
@@ -49,3 +49,4 @@
        :beta (* ff (/ (cos (* w0 s)) w0))
        :e (* rm (scalar (*i v f)))
        :tm rm))))
+
