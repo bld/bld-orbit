@@ -14,7 +14,8 @@
   (:documentation "Cartesian coordinate state"))
 
 (defmethod print-object ((x cartstate) stream)
-  (format stream "#<CARTSTATE :r ~a :v ~a>" (slot-value x 'r) (slot-value x 'v)))
+  (with-slots (r v) x
+    (format stream "#<CARTSTATE :r ~a :v ~a>" r v)))
 
 (defstatearithmetic cartstate (r v))
 

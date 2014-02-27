@@ -47,21 +47,3 @@
   (pframe (new-frame (rp x) (iframe x)))
   (n (funcall (nfun x) x))
   (a (funcall (afun x) x)))
-
-(defmacro defcartesian (name &key cb gfun area mass pfun afun bfun nfun iframe rs)
-  "Define a cartesian class"
-  `(progn
-     (defclass ,name (cartstate)
-       ((cb :allocation :class :initform ,cb)
-	(gfun :allocation :class :initform ,gfun)
-	(area :allocation :class :initform ,area)
-	(mass :allocation :class :initform ,mass)
-	(pfun :allocation :class :initform ,pfun)
-	(afun :allocation :class :initform ,afun)
-	(bfun :allocation :class :initform ,bfun)
-	(nfun :allocation :class :initform ,nfun)
-	(iframe :allocation :class :initform ,iframe)
-	(rs :allocation :class :initform ,rs)))
-     (defstatearithmetic ,name (r v) :oslots (tm))
-     (defmethod print-object ((x ,name) stream)
-       (format stream ,(format nil "#<~a :r ~~a :v ~~a>" name) (r x) (v x)))))

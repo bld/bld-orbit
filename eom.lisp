@@ -8,7 +8,7 @@
 
 (defmethod eom2 (s x sc)
   "Equations of motion for any "
-  (with-slots (cb sun pointfun accfun) sc
+  (with-slots (cb sun pointfun gfun accfun) sc
     ;; position & velocity of SC relative to central body
     (with-slots (r v) (to-cartesian x s sc)
       (let* ((tm (time-of s x)) ; UTC
@@ -16,7 +16,7 @@
 	     (r-sc (+ r-cb r)) ; position of SC in system
 	     (r-sun (slot-value (position-velocity sun tm) 'r))
 	     (rsc-sun (- r-sc r-sun)) ; position of SC wrt sun
-	     (g-cb (gravity2 r cb)) ; gravity of central body
+	     (g-cb (funcall gfun r cb)) ; gravity of central body
 	     (sframe (funcall pointfun s x sc)) ; sail frame
 	     (f-sun (funcall accfun rsc-sun sframe sc sun))) ; sun sail force
 	(dxds s x sc f-sun g-cb))))) ; derivative of state

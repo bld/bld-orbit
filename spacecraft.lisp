@@ -6,6 +6,7 @@
   ((eom :initarg :eom :initform #'eom :documentation "Equations of motion")
    (cb :initarg :cb :initform (make-instance 'body :mu 1d0) :documentation "Central body")
    (sun :initarg :sun :documentation "Sun (if it's different from CB)")
+   (gfun :initarg :gfun :documentation "Gravity function")
    (accfun :initarg :accfun :initform #'sail-ideal-acc :documentation "Sail acceleration function")
    (basisfun :initarg :basisfun :initform #'rvbasis :documentation "Orbital basis function")
    (pointfun :initarg :pointfun :initform #'sail-pointing-fixed :documentation "Sail pointing function")

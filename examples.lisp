@@ -10,6 +10,7 @@
     :eom #'eom2
     :cb *earth*
     :sun *sun*
+    :gfun #'gravity2
     :accfun #'no-sail
     :pointfun #'(lambda (s x sc) *j2000*)
     :lightness 0d0
@@ -34,6 +35,7 @@
     :eom #'eom2
     :cb *earth*
     :sun *sun*
+    :gfun #'gravity2
     :accfun #'sail-flat-ideal-acc
     :pointfun #'sail-frame-sun-normal
     :lightness 0d0
@@ -60,6 +62,7 @@
       :eom #'eom2
       :cb *sun*
       :sun *sun*
+      :gfun #'gravity2
       :accfun #'no-sail
       :pointfun #'sail-frame-sun-normal
       :lightness 0d0
@@ -80,6 +83,7 @@
       :eom #'eom2
       :cb *sun*
       :sun *sun*
+      :gfun #'gravity2
       :accfun #'sail-flat-ideal-acc
       :pointfun #'sail-frame-sun-normal
       :lightness 0d0
@@ -100,6 +104,7 @@
       :eom #'eom2
       :cb *sun*
       :sun *sun*
+      :gfun #'gravity2
       :accfun #'sail-flat-ideal-acc
       :pointfun #'sail-frame-sun-fixed
       :lightness 0d0
@@ -121,6 +126,7 @@
       :eom #'eom2
       :cb *sun*
       :sun *sun*
+      :gfun #'gravity2
       :accfun #'sail-flat-ideal-acc
       :pointfun #'sail-frame-sun-fixed
       :lightness 0d0
@@ -145,6 +151,7 @@
       :eom #'eom2
       :cb *sun*
       :sun *sun*
+      :gfun #'gravity2
       :accfun #'no-sail
       :pointfun #'sail-frame-sun-normal
       :lightness 0d0
@@ -166,6 +173,7 @@
       :eom #'eom2
       :cb *sun*
       :sun *sun*
+      :gfun #'gravity2
       :accfun #'sail-flat-ideal-acc
       :pointfun #'sail-frame-sun-normal
       :lightness 0d0
@@ -187,6 +195,7 @@
       :eom #'eom2
       :cb *sun*
       :sun *sun*
+      :gfun #'gravity2
       :accfun #'sail-flat-ideal-acc
       :pointfun #'sail-frame-sun-fixed
       :lightness 0d0
@@ -208,6 +217,7 @@
       :eom #'eom2
       :cb *sun*
       :sun *sun*
+      :gfun #'gravity2
       :accfun #'sail-flat-ideal-acc
       :pointfun #'sail-frame-sun-fixed
       :lightness 0d0
