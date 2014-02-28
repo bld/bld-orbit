@@ -21,7 +21,7 @@ attitude specified by RS slot"
 
 (defun solar-pressure (x)
   "Solar radiation pressure experienced by state X"
-  (/ (* (ls (cb x))
+  (/ (* (ls (sun x))
 	*au2*)
      (rm2 x)
      *c*))

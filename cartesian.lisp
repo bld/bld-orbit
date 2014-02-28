@@ -4,13 +4,15 @@
   ;; State slots
   ((r :initarg :r :accessor r :documentation "Position vector")
    (v :initarg :v :accessor v :documentation "Velocity vector")
-   (derived :accessor derived :initform (make-hash-table) :documentation "Derived parameters"))
+   (derived :accessor derived :initform (make-hash-table) :documentation "Derived parameters")
+   (tm :initarg :tm :accessor tm :initform nil :documentation "Time")
+   (sc :initarg :sc :accessor sc :initform nil :documentation "Spacecraft data"))
   (:documentation "Cartesian coordinate state"))
 
 (defmethod print-object ((x cartstate) stream)
   (format stream "#<CARTSTATE :r ~a :v ~a>" (r x) (v x)))
 
-(defstatearithmetic cartstate (r v))
+(defstatearithmetic cartstate (r v) :oslots (tm sc))
 
 (defmethod energy-cb ((x cartstate) cb)
   (with-slots (mu) cb
@@ -23,17 +25,6 @@
 
 (defmethod time-of (s (x cartstate))
   s)
-
-(defmethod eom (tm (x cartstate) sc)
-  "Solar sail cartesian equations of motion"
-  (with-slots (r v) x
-    (with-slots (cb accfun) sc
-      (with-slots (mu) cb
-	(make-instance
-	 'cartstate
-	 :r v
-	 :v (+ (funcall accfun tm x sc)
-	       (gravity tm r mu)))))))
 
 (defmethod to-cartesian ((x cartstate) tm sc)
   (values x tm))
@@ -62,83 +53,70 @@
 (defderived a (tm x sc)
   (with-slots (accfun sun) sc
     (with-slots (accfun) sc
-      (funcall accfun 
+      (funcall accfun
 	       (rsc-sun tm x sc)
 	       (sframe tm x sc)
 	       sc
 	       sun))))
 
+(defderived ru (tm (x cartstate) sc)
+  (unitg (slot-value x 'r)))
+
+(defderived rm2 (tm (x cartstate) sc)
+  (norme2 (r x)))
+
+(defderived rm (tm (x cartstate) sc)
+  (sqrt (rm2 tm x sc)))
+
+(defderived p (tm x sc)
+  (funcall (slot-value sc 'spfun) tm x sc))
+
 (defderived g (tm (x cartstate) sc)
-  (with-slots (r) x
-    (with-slots (gfun cb) sc
-      (funcall gfun r cb))))
+  (funcall (slot-value sc 'gfun) tm x sc))
+
+(defderived n (tm (x cartstate) sc)
+  (funcall (slot-value sc 'nfun) tm x sc))
+
+(defun n-normal (tm (x cartstate) sc)
+  (ru tm x sc))
+
+(defun n-fixed (tm (x cartstate) sc)
+  
+
+(defun gravity3 (tm (x cartstate) sc)
+  (with-slots (cb) sc
+    (with-slots (mu) cb
+      (- (* (/ mu (rm2 tm x sc)) 
+	    (ru tm x sc))))))
+
+(defun sp-inverse-square (tm (x cartstate) sc)
+  "Solar pressure inverse square function"
+  (with-slots (sun) sc
+    (with-slots (ls) sun
+      (/ (* ls (expt (/ *au* (rm tm x sc)) 2)) *c*))))
+
+(defun sail-ideal-acc2 (tm (x cartstate) sc)
+  (with-slots (area mass) sc
+    (let ((p (solar-pressure
+    (/ (* 2 p area (expt (scalar (*i ru n)) 2) n) mass))
 
 (defmethod eom3 (tm (x cartstate) sc)
   (with-slots (v) x
-    (make-instance 'cartstate :r v :v (+ (a tm x sc) (g tm x sc)))))
+    (make-instance 
+     'cartstate 
+     :r v 
+     :v (+ (a tm x sc) (g tm x sc)))))
 
-(defparameter *eom3-examples*
-  (make-hash
-   :kepler
-   (let ((t0 (coerce (encode-universal-time 0 0 0 27 2 2014 0) 'double-float))
-	 (tf (coerce (encode-universal-time 0 0 0 27 2 2015 0) 'double-float)))
-     (make-instance
-      'sail
-      :eom #'eom3
-      :cb *sun*
-      :sun *sun*
-      :gfun #'gravity2
-      :accfun #'no-sail
-      :pointfun #'(lambda (tm x sc) *j2000*)
-      :lightness 0d0
-      :area 1260d-6
-      :mass 52d0
-      :optical nil
-      :basis *j2000*
-      :t0 t0
-      :tf tf
-      :x0 (position-velocity *earth* t0)
-      :rs (re3 :s 1)
-      :outfile "eom3-example-kepler.dat"))
-   :normal
-   (let ((t0 (coerce (encode-universal-time 0 0 0 27 2 2014 0) 'double-float))
-	 (tf (coerce (encode-universal-time 0 0 0 27 2 2015 0) 'double-float)))
-     (make-instance
-      'sail
-      :eom #'eom3
-      :cb *sun*
-      :sun *sun*
-      :gfun #'gravity2
-      :accfun #'sail-flat-ideal-acc
-      :pointfun #'sail-frame-sun-normal
-      :lightness 0d0
-      :area 1260d-6
-      :mass 52d0
-      :optical nil
-      :basis *j2000*
-      :t0 t0
-      :tf tf
-      :x0 (position-velocity *earth* t0)
-      :rs (re3 :s 1)
-      :outfile "eom3-example-normal.dat"))
-   :fixed
-   (let ((t0 (coerce (encode-universal-time 0 0 0 27 2 2014 0) 'double-float))
-	 (tf (coerce (encode-universal-time 0 0 0 27 2 2015 0) 'double-float)))
-     (make-instance
-      'sail
-      :eom #'eom3
-      :cb *sun*
-      :sun *sun*
-      :gfun #'gravity2
-      :accfun #'sail-flat-ideal-acc
-      :pointfun #'sail-frame-sun-fixed
-      :lightness 0d0
-      :area 1260d-6
-      :mass 52d0
-      :optical nil
-      :basis *j2000*
-      :t0 t0
-      :tf tf
-      :x0 (position-velocity *earth* t0)
-      :rs (rotor (bve3 :e1e2 1) (atan (/ (sqrt 2))))
-      :outfile "eom3-example-fixed.dat"))))
+;; Old stuff
+
+(defmethod eom (tm (x cartstate) sc)
+  "Solar sail cartesian equations of motion"
+  (with-slots (r v) x
+    (with-slots (cb accfun) sc
+      (with-slots (mu) cb
+	(make-instance
+	 'cartstate
+	 :r v
+	 :v (+ (funcall accfun tm x sc)
+	       (gravity tm r mu)))))))
+

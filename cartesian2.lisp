@@ -6,6 +6,7 @@
    (v :initarg :v :accessor v :documentation "Velocity vector")
    ;; Parameter slots
    (cb :initarg :cb :accessor cb :documentation "Central body")
+   (sun :initarg :sun :accessor sun :documentation "Sun")
    (gfun :initarg :gfun :accessor gfun :documentation "Gravity function")
    (area :initarg :area :accessor area :documentation "Sail area")
    (mass :initarg :mass :accessor mass :documentation "Spacecraft mass")

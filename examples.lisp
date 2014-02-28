@@ -1,5 +1,74 @@
 (in-package :bld-orbit)
 
+;; EOM3 examples
+
+(defparameter *eom3-examples*
+  (make-hash
+   :kepler
+   (let ((t0 (coerce (encode-universal-time 0 0 0 27 2 2014 0) 'double-float))
+	 (tf (coerce (encode-universal-time 0 0 0 27 2 2015 0) 'double-float)))
+     (make-instance
+      'sail
+      :eom #'eom3
+      :cb *sun*
+      :sun *sun*
+      :gfun #'gravity3
+      :accfun #'no-sail
+      :pointfun #'(lambda (tm x sc) *j2000*)
+      :lightness 0d0
+      :area 1260d-6
+      :mass 52d0
+      :optical nil
+      :basis *j2000*
+      :t0 t0
+      :tf tf
+      :x0 (position-velocity *earth* t0)
+      :rs (re3 :s 1)
+      :outfile "eom3-example-kepler.dat"))
+   :normal
+   (let ((t0 (coerce (encode-universal-time 0 0 0 27 2 2014 0) 'double-float))
+	 (tf (coerce (encode-universal-time 0 0 0 27 2 2015 0) 'double-float)))
+     (make-instance
+      'sail
+      :eom #'eom3
+      :cb *sun*
+      :sun *sun*
+      :gfun #'gravity3
+      :accfun #'sail-ideal-acc2
+      :pointfun #'sail-frame-sun-normal
+      :nfun #'n-normal
+      :lightness 0d0
+      :area 1260d-6
+      :mass 52d0
+      :optical nil
+      :basis *j2000*
+      :t0 t0
+      :tf tf
+      :x0 (position-velocity *earth* t0)
+      :rs (re3 :s 1)
+      :outfile "eom3-example-normal.dat"))
+   :fixed
+   (let ((t0 (coerce (encode-universal-time 0 0 0 27 2 2014 0) 'double-float))
+	 (tf (coerce (encode-universal-time 0 0 0 27 2 2015 0) 'double-float)))
+     (make-instance
+      'sail
+      :eom #'eom3
+      :cb *sun*
+      :sun *sun*
+      :gfun #'gravity2
+      :accfun #'sail-flat-ideal-acc
+      :pointfun #'sail-frame-sun-fixed
+      :lightness 0d0
+      :area 1260d-6
+      :mass 52d0
+      :optical nil
+      :basis *j2000*
+      :t0 t0
+      :tf tf
+      :x0 (position-velocity *earth* t0)
+      :rs (rotor (bve3 :e1e2 1) (atan (/ (sqrt 2))))
+      :outfile "eom3-example-fixed.dat"))))
+
 ;;; EOM2 examples
 
 (defparameter *sail-3d-eom2-examples*

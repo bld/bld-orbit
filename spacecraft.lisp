@@ -11,6 +11,7 @@
    (basisfun :initarg :basisfun :initform #'rvbasis :documentation "Orbital basis function")
    (pointfun :initarg :pointfun :initform #'sail-pointing-fixed :documentation "Sail pointing function")
    (nfun :initarg :nfun :initform #'first :documentation "Function to call on sail body frame to get normal vector")
+   (spfun :initarg :spfun :documentation "Solar pressure function")
    (lightness :initarg :lightness :initform 0)
    (mass :initarg :mass :documentation "Mass of spacecraft (kg)")
    (area :initarg :area :documentation "Sail area (km^2, m^2*1d-6)")
