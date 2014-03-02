@@ -22,7 +22,7 @@
 
 (defun no-sail (tm x sc)
   "No sail acceleration"
-  (newg (r x)))
+  (newg (r (xcart tm x sc))))
 
 (defun sail-ideal-acc-normal (tm x sc)
   "Ideal sail pointing directly at the sun"

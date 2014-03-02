@@ -11,7 +11,7 @@
 CB. First is the unit position vector. Second is the complement of the
 first in the orbit plane. Third (if it exists) is the orbit plane
 normal vector."
-  (with-slots (r v) (to-cartesian x tm sc)
+  (with-slots (r v) (xcart tm x sc)
     (with-derived (ru) tm x sc
       (let* ((h (unitg (*o r v)))
 	     (x ru)
@@ -30,4 +30,3 @@ normal vector."
 	     (o1 (unitg (*i (third iframe) (dual o3))))
 	     (o2 (*i o3 (dual o1))))
 	(list o1 o2 o3)))))
-

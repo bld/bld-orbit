@@ -6,7 +6,8 @@
   ((alpha :initarg :alpha :documentation "U at s=0")
    (beta :initarg :beta :documentation "dU/ds / w0 at s=0")
    (e :initarg :e :documentation "Keplerian specific orbital energy")
-   (tm :initarg :tm :documentation "Time"))
+   (tm :initarg :tm :documentation "Time")
+   (derived :accessor derived :initform (make-hash-table) :documentation "Derived values"))
   (:documentation "Kustaanheimo-Stiefel orbital element state"))
 
 (let ((slots '(alpha beta e tm)))
@@ -16,6 +17,8 @@
 	       collect (format nil ":~a ~a" slot (slot-value x slot))))))
 
 (defstatearithmetic ksstate (alpha beta e tm))
+
+;;; KS state conversion routines
 
 (defmethod to-spinor ((x ksstate) s sc)
   "Convert KS state to spinor state"
@@ -94,3 +97,51 @@
   "Default: try cartesian first"
   (multiple-value-bind (xc tm) (to-cartesian x s sc)
     (to-ks xc tm sc)))
+
+;;; Equation of motion
+
+#+null(defmethod eom (s (x ksstate) sc)
+  (with-slots (alpha beta e tm) x
+    (let* ((xspin (to-spinor x s sc))
+	   (xcart (to-cartesian xspin s sc))
+	   (r (slot-value xcart 'r))
+	   (v (slot-value xcart 'v))
+	   (x0 (slot-value sc 'x0))
+	   (e0 (slot-value x0 'e))
+	   (hk0 (- e0))
+	   (w0 (sqrt (/ hk0 2)))
+	   (rm (norme r))
+	   (u (slot-value xspin 'u))
+	   (hk (- e))
+	   (w (/ (- hk hk0) 2))
+	   (ff (- (/ (*g f r u) 2) (* w u))))
+      (make-instance
+       'ksstate
+       :alpha (- (* ff (/ (sin (* w0 s)) w0)))
+       :beta (* ff (/ (cos (* w0 s)) w0))
+       :e (* rm (scalar (*i v f)))
+       :tm rm))))
+
+(defderived xspin (s (x ksstate) sc)
+    "Spinor state"
+  (to-spinor x s sc))
+
+(defmethod eom (s (x ksstate) sc)
+  (with-slots (alpha beta e tm) x
+    (with-derived (xspin xcart rm a) s x sc
+      (let* ((r (r xcart))
+	     (v (v xcart))
+	     (x0 (slot-value sc 'x0))
+	     (e0 (slot-value x0 'e))
+	     (hk0 (- e0))
+	     (w0 (sqrt (/ hk0 2)))
+	     (u (slot-value xspin 'u))
+	     (hk (- e))
+	     (w (/ (- hk hk0) 2))
+	     (ff (- (/ (*g a r u) 2) (* w u))))
+	(make-instance
+	 'ksstate
+	 :alpha (- (* ff (/ (sin (* w0 s)) w0)))
+	 :beta (* ff (/ (cos (* w0 s)) w0))
+	 :e (* rm (scalar (*i v a)))
+	 :tm rm)))))

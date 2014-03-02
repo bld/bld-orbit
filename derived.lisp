@@ -4,43 +4,51 @@
 ;; Stored in DERIVED slot of state variables for re-use
 ;; Calculated & set upon first call
 
+(defderived xcart (tm x sc)
+    "Cartesian state"
+  (to-cartesian x tm sc))
+
+(defmethod xcart (tm (x cartstate) sc)
+  "Just return x for states already cartesian"
+  x)
+
 (defderived r-cb (tm x sc)
-  "Inertial position of central body"
+    "Inertial position of central body"
   (with-slots (cb) sc
     (r (position-velocity cb (time-of tm x)))))
 
 (defderived r-sc (tm x sc)
-  "Inertial position of spacecraft"
+    "Inertial position of spacecraft"
   (+ (r-cb tm x sc)
-     (r x)))
+     (r (xcart tm x sc))))
 
 (defderived r-sun (tm x sc)
-  "Inertial position of sun"
+    "Inertial position of sun"
   (with-slots (sun) sc
     (r (position-velocity sun (time-of tm x)))))
 
 (defderived r-sc-sun (tm x sc)
-  "Position of spacecraft relative to sun"
+    "Position of spacecraft relative to sun"
   (with-derived (r-sc r-sun) tm x sc
     (- r-sc r-sun)))
 
 (defderived ru-sc-sun (tm x sc)
-  "Unit position vector of spacecraft relative to sun"
+    "Unit position vector of spacecraft relative to sun"
   (unitg (r-sc-sun tm x sc)))
 
 (defderived rotor-o (tm x sc)
-  "Rotor of orbit frame"
+    "Rotor of orbit frame"
   (with-slots (iframe) sc
     (with-derived (oframe) tm x sc
       (recoverrotor oframe iframe))))
 
 (defderived rotor-p (tm x sc)
-  "Rotor of pointing frame"
+    "Rotor of pointing frame"
   (with-slots (rs) sc
     (*g (rotor-o tm x sc) rs)))
 
 (defderived oframe (tm x sc)
-  "Orbit frame"
+    "Orbit frame"
   (with-slots (ofun) sc
     (funcall ofun tm x sc)))
 
@@ -56,11 +64,11 @@
 
 (defderived ru (tm x sc)
   "Unit vector of position wrt to CB"
-  (unitg (r x)))
+  (unitg (r (xcart tm x sc))))
 
 (defderived rm2 (tm x sc)
   "Radius squared wrt CB"
-  (norme2 (r x)))
+  (norme2 (r (xcart tm x sc))))
 
 (defderived rm (tm x sc)
   "Radius from CB"

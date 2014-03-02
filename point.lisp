@@ -30,9 +30,9 @@
     ((apply #'= 2 (mapcar #'dimension (append fs es))) (recoverrotor2d fs es))
     (t (error "FS and ES must all be dimension 2 or 3"))))
 
-(defun recoverspinor (r fs es)
+(defun recoverspinor (rm fs es)
   "Recover a spinor given orbit radius, new basis vectors, and original basis vectors"
-  (* (recoverrotor fs es) (sqrt r)))
+  (* (recoverrotor fs es) (sqrt rm)))
 
 ;;; Pointing functions
 

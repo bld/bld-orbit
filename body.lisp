@@ -32,7 +32,7 @@
   ((cb :initarg :cb :documentation "Central body")
    (mu :initarg :mu :documentation "Gravitational parameter")
    (ls :initarg :ls :documentation "Solar luminosity at 1 AU in W/m^2")
-   (basis :initarg :basis :documentation "Basis of body's orbit")
+   (iframe :initarg :iframe :documentation "Inertial frame of body's orbit")
    (jd :initarg :jd :documentation "Julian date of ephemeris")
    (ec :initarg :ec :documentation "Eccentricity")
    (qr :initarg :qr :documentation "Periapsis distance")
@@ -73,7 +73,7 @@
 (defmethod position-velocity ((b body) teph)
   "Position and velocity of body given UTC time"
   (if (slot-boundp b 'cb)
-      (with-slots (cb mu basis jd ec qr in om w tp n ma ta a ad pr xks) b
+      (with-slots (cb mu iframe jd ec qr in om w tp n ma ta a ad pr xks) b
 	(with-slots (alpha beta e tm) xks
 	  (let* ((teph-jd (universal-to-julian-date teph))
 		 (t-jd (- teph-jd jd))
@@ -93,7 +93,7 @@
    :cb *ssb*
    :mu 1.32712440018d11
    :ls 1361.3477d0
-   :basis *j2000*
+   :iframe *j2000*
    :jd 2456636.500000000d0
    :EC 8.546770937522187d-01 :QR 2.906237974575245d+04 :IN 2.400537289551978d+00
    :OM 5.010638625423464d+01 :W 6.029921568009870d+01 :Tp 2456456.332998391241d0
@@ -107,7 +107,7 @@
    :cb *ssb*
    :mu 398600.44d0
    :ls nil
-   :basis *j2000*
+   :iframe *j2000*
    :jd 2457388.500000000d0
    :ec 1.621551291914839d-02
    :qr 1.471327388424463d+08
@@ -128,7 +128,7 @@
    :cb *sun*
    :mu 42828.3d0
    :ls nil
-   :basis *j2000*
+   :iframe *j2000*
    :jd 2456636.500000000d0
    :ec 9.656324402943112d-02
    :qr 2.051027822461357d+08
@@ -149,7 +149,7 @@
    :cb *earth*
    :mu 4902.798d0
    :ls nil
-   :basis *j2000*
+   :iframe *j2000*
    :jd 2457388.500000000d0
    :EC 6.431655045408705d-02 :QR 3.512367974406679d+05 :IN 5.071049688763354d+00
    :OM 1.746561927360046d+02 :W 2.015670143350679d+02 :Tp  2457376.756737075746d0

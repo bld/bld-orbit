@@ -96,9 +96,9 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 
 (defmethod to-cartesian ((x coestate) f sc)
   (with-slots (a e i lan aop tm) x
-    (with-slots (cb basis) sc
+    (with-slots (cb iframe) sc
       (with-slots (mu) cb
-	(multiple-value-bind (r v) (coe2rv a e i lan aop f mu basis)
+	(multiple-value-bind (r v) (coe2rv a e i lan aop f mu iframe)
 	  (values
 	   (make-instance
 	    'cartstate
@@ -109,18 +109,18 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 (defmethod to-coe ((x cartstate) tm sc)
   "Convert cartesian to classical orbital element state"
   (with-slots (r v) x
-    (with-slots (cb basis) sc
+    (with-slots (cb iframe) sc
       (with-slots (mu) cb
 	(let* ((mombv (mombv-rv r v))
-	       (nodev (nodev-rv mombv basis))
+	       (nodev (nodev-rv mombv iframe))
 	       (eccv (eccv-rv r v mu)))
 	  (values
 	   (make-instance
 	    'coestate
 	    :a (sma-rv (norme r) (norme v) mu)
 	    :e (norme eccv)
-	    :i (inc-rv mombv basis)
-	    :lan (lan-rv nodev basis)
+	    :i (inc-rv mombv iframe)
+	    :lan (lan-rv nodev iframe)
 	    :aop (aop-rv nodev eccv mombv)
 	    :tm tm)
 	   (truan-rv eccv r mombv)))))))
@@ -134,9 +134,9 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 (defmethod eom (f (x coestate) sc)
   "Classical orbital element equations of motion. Watch for singularities."
   (with-slots (a e i lan aop tm) x
-    (with-slots (cb accfun basis) sc
+    (with-slots (cb accfun iframe) sc
       (with-slots (mu) cb
-	(multiple-value-bind (r v) (coe2rv a e i lan aop f mu basis) ; position & velocity
+	(multiple-value-bind (r v) (coe2rv a e i lan aop f mu iframe) ; position & velocity
 	  (let* ((rm (norme r)) ; radius
 		 (p (* a (- 1 (expt e 2)))) ; semi latus rectum
 		 (fv (funcall accfun f x sc)) ; force vector
