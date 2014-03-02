@@ -61,7 +61,7 @@
   "Convert cartesian state to spinor given time and X"
   (with-slots (r v) x
     (with-slots (basis) sc
-      (let ((u (recoverspinor (norme r) (rvbasis r v) basis)))
+      (let ((u (recoverspinor (norme r) (rv-frame tm x sc) basis)))
 	(values
 	 (make-instance
 	  'spinorstate
@@ -74,7 +74,7 @@
   "Convert to an initial spinor state from cartesian state & time"
   (with-slots (r v) x
     (with-slots (basis) sc
-      (let ((u (recoverspinor (norme r) (rvbasis r v) basis)))
+      (let ((u (recoverspinor (norme r) (rv-frame tm x sc) basis)))
 	(values
 	 (make-instance
 	  'spinorstate

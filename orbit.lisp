@@ -31,3 +31,4 @@ Includes:
 
 (defgeneric to-initial-ks (x s sc) (:documentation "Generate initial Kustaanheimo-Stiefel orbit element state from another state & corresponding central body"))
 
+(defgeneric position-velocity (b teph) (:documentation "Cartesian state of body B at universal time TEPH"))

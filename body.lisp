@@ -70,19 +70,20 @@
       (setf x0 xspin)
       (setf xks (to-ks xspin 0 b)))))
 
-(defgeneric position-velocity (b teph) (:documentation "Cartesian state of body"))
-
 (defmethod position-velocity ((b body) teph)
   "Position and velocity of body given UTC time"
-  (with-slots (cb mu basis jd ec qr in om w tp n ma ta a ad pr xks) b
-    (with-slots (alpha beta e tm) xks
-      (let* ((teph-jd (universal-to-julian-date teph))
-	     (t-jd (- teph-jd jd))
-	     (m (+ ma (* t-jd n 60d0 60d0 24d0)))
-	     (ea (solve-kepler m (deg ec)))
-	     (w0 (sqrt (/ (- e) 2)))
-	     (s (/ (rad ea) 2 w0)))
-	(to-cartesian xks s b)))))
+  (if (slot-boundp b 'cb)
+      (with-slots (cb mu basis jd ec qr in om w tp n ma ta a ad pr xks) b
+	(with-slots (alpha beta e tm) xks
+	  (let* ((teph-jd (universal-to-julian-date teph))
+		 (t-jd (- teph-jd jd))
+		 (m (+ ma (* t-jd n 60d0 60d0 24d0)))
+		 (ea (solve-kepler m (deg ec)))
+		 (w0 (sqrt (/ (- e) 2)))
+		 (s (/ (rad ea) 2 w0)))
+	    (to-cartesian xks s b))))
+      ;; Return 0 position & velocity if there's no central body
+      (make-instance 'cartstate :r (ve3) :v (ve3))))
 
 (defparameter *ssb* (make-instance 'body :mu 1.32712440018d11))
 

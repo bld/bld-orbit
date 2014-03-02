@@ -1,303 +1,61 @@
 (in-package :bld-orbit)
 
-;; EOM3 examples
-
-(defparameter *eom3-examples*
+(defparameter *examples*
   (make-hash
    :kepler
    (let ((t0 (coerce (encode-universal-time 0 0 0 27 2 2014 0) 'double-float))
 	 (tf (coerce (encode-universal-time 0 0 0 27 2 2015 0) 'double-float)))
      (make-instance
-      'sail
-      :eom #'eom3
-      :cb *sun*
+      'sc
+      :eom #'eom
+      :cb *ssb*
       :sun *sun*
-      :gfun #'gravity3
-      :accfun #'no-sail
-      :pointfun #'(lambda (tm x sc) *j2000*)
-      :lightness 0d0
-      :area 1260d-6
-      :mass 52d0
-      :optical nil
-      :basis *j2000*
+      :gfun #'gravity
+      :afun #'no-sail
+      :pfun #'oframe
+      :iframe *j2000*
       :t0 t0
       :tf tf
       :x0 (position-velocity *earth* t0)
-      :rs (re3 :s 1)
-      :outfile "eom3-example-kepler.dat"))
+      :outfile "example-kepler.dat"))
    :normal
    (let ((t0 (coerce (encode-universal-time 0 0 0 27 2 2014 0) 'double-float))
 	 (tf (coerce (encode-universal-time 0 0 0 27 2 2015 0) 'double-float)))
      (make-instance
-      'sail
-      :eom #'eom3
-      :cb *sun*
+      'sc
+      :eom #'eom
+      :cb *ssb*
       :sun *sun*
-      :gfun #'gravity3
-      :accfun #'sail-ideal-acc2
-      :pointfun #'sail-frame-sun-normal
-      :nfun #'n-normal
-      :lightness 0d0
+      :gfun #'gravity
+      :afun #'sail-ideal-acc-normal
+      :spfun #'solar-pressure
       :area 1260d-6
       :mass 52d0
-      :optical nil
-      :basis *j2000*
+      :iframe *j2000*
       :t0 t0
       :tf tf
       :x0 (position-velocity *earth* t0)
       :rs (re3 :s 1)
-      :outfile "eom3-example-normal.dat"))
+      :outfile "example-normal.dat"))
    :fixed
    (let ((t0 (coerce (encode-universal-time 0 0 0 27 2 2014 0) 'double-float))
 	 (tf (coerce (encode-universal-time 0 0 0 27 2 2015 0) 'double-float)))
      (make-instance
-      'sail
-      :eom #'eom3
-      :cb *sun*
+      'sc
+      :eom #'eom
+      :cb *ssb*
       :sun *sun*
-      :gfun #'gravity2
-      :accfun #'sail-flat-ideal-acc
-      :pointfun #'sail-frame-sun-fixed
-      :lightness 0d0
+      :gfun #'gravity
+      :afun #'sail-ideal-acc-fixed
+      :spfun #'solar-pressure
+      :pfun #'fixed
+      :ofun #'rv-frame
+      :nfun #'first
       :area 1260d-6
       :mass 52d0
-      :optical nil
-      :basis *j2000*
+      :iframe *j2000*
       :t0 t0
       :tf tf
       :x0 (position-velocity *earth* t0)
       :rs (rotor (bve3 :e1e2 1) (atan (/ (sqrt 2))))
-      :outfile "eom3-example-fixed.dat"))))
-
-;;; EOM2 examples
-
-(defparameter *sail-3d-eom2-examples*
-  (make-hash*
-   :cart-kepler
-   (make-instance
-    'sail
-    :eom #'eom2
-    :cb *earth*
-    :sun *sun*
-    :gfun #'gravity2
-    :accfun #'no-sail
-    :pointfun #'(lambda (s x sc) *j2000*)
-    :lightness 0d0
-    :area 1200d-6
-    :mass 45d0
-    :optical nil
-    :basis *j2000*
-    :t0 (coerce (encode-universal-time 0 0 0 16 12 2013 0) 'double-float)
-    :tf (coerce (encode-universal-time 0 0 0 17 12 2013 0) 'double-float)
-    :rs (re3 :s 1)
-    :outfile "sail-3d-cart-geo-kepler-eg.dat"
-    :x0 (let* ((w (/ (* 2d0 pi) 86164d0))
-	       (r (expt (/ (slot-value *earth* 'mu) (expt w 2d0)) 1/3))
-	       (v (* w r)))
-	  (make-instance 
-	   'cartstate 
-	   :r (* r (ve3 :e1 1))
-	   :v (* v (unitg (ve3 :e2 1 :e3 0.1))))))
-   :cart-normal
-   (make-instance
-    'sail
-    :eom #'eom2
-    :cb *earth*
-    :sun *sun*
-    :gfun #'gravity2
-    :accfun #'sail-flat-ideal-acc
-    :pointfun #'sail-frame-sun-normal
-    :lightness 0d0
-    :area 1200d-6
-    :mass 45d0
-    :optical nil
-    :basis *j2000*
-    :t0 (coerce (encode-universal-time 0 0 0 16 12 2013 0) 'double-float)
-    :tf (coerce (encode-universal-time 0 0 0 17 12 2013 0) 'double-float)
-    :rs (re3 :s 1)
-    :outfile "sail-3d-cart-geo-normal-eg.dat"
-    :x0 (let* ((w (/ (* 2d0 pi) 86164d0))
-	       (r (expt (/ (slot-value *earth* 'mu) (expt w 2d0)) 1/3))
-	       (v (* w r)))
-	  (make-instance 
-	   'cartstate 
-	   :r (* r (ve3 :e1 1))
-	   :v (* v (unitg (ve3 :e2 1 :e3 0.1))))))
-   :cart-solar-kepler
-   (let ((t0 (coerce (encode-universal-time 0 0 0 16 12 2013 0) 'double-float))
-	 (tf (coerce (encode-universal-time 0 0 0 16 12 2014 0) 'double-float)))
-     (make-instance
-      'sail
-      :eom #'eom2
-      :cb *sun*
-      :sun *sun*
-      :gfun #'gravity2
-      :accfun #'no-sail
-      :pointfun #'sail-frame-sun-normal
-      :lightness 0d0
-      :area 1200d-6
-      :mass 45d0
-      :optical nil
-      :basis *j2000*
-      :t0 t0
-      :tf tf
-      :x0 (position-velocity *earth* t0)
-      :rs (re3 :s 1)
-      :outfile "sail-3d-cart-solar-kepler-eg.dat"))
-   :cart-solar-normal
-   (let ((t0 (coerce (encode-universal-time 0 0 0 16 12 2013 0) 'double-float))
-	 (tf (coerce (encode-universal-time 0 0 0 16 12 2014 0) 'double-float)))
-     (make-instance
-      'sail
-      :eom #'eom2
-      :cb *sun*
-      :sun *sun*
-      :gfun #'gravity2
-      :accfun #'sail-flat-ideal-acc
-      :pointfun #'sail-frame-sun-normal
-      :lightness 0d0
-      :area 1200d-6
-      :mass 45d0
-      :optical nil
-      :basis *j2000*
-      :t0 t0
-      :tf tf
-      :x0 (position-velocity *earth* t0)
-      :rs (re3 :s 1)
-      :outfile "sail-3d-cart-solar-normal-eg.dat"))
-   :cart-solar-fixed
-   (let ((t0 (coerce (encode-universal-time 0 0 0 16 12 2013 0) 'double-float))
-	 (tf (coerce (encode-universal-time 0 0 0 16 12 2014 0) 'double-float)))
-     (make-instance
-      'sail
-      :eom #'eom2
-      :cb *sun*
-      :sun *sun*
-      :gfun #'gravity2
-      :accfun #'sail-flat-ideal-acc
-      :pointfun #'sail-frame-sun-fixed
-      :lightness 0d0
-      :area 1200d-6
-      :mass 45d0
-      :optical nil
-      :basis *j2000*
-      :t0 t0
-      :tf tf
-      :x0 (position-velocity *earth* t0)
-      :rs (rotor (bve3 :e1e2 1) (atan (/ (sqrt 2))))
-      :outfile "sail-3d-cart-solar-fixed-eg.dat"))
-   :cart-solar-table
-   (let ((t0 (coerce (encode-universal-time 0 0 0 16 12 2013 0) 'double-float))
-	 (t1 (coerce (encode-universal-time 0 0 0 16 6 2014 0) 'double-float))
-	 (tf (coerce (encode-universal-time 0 0 0 16 12 2015 0) 'double-float)))
-     (make-instance
-      'sail
-      :eom #'eom2
-      :cb *sun*
-      :sun *sun*
-      :gfun #'gravity2
-      :accfun #'sail-flat-ideal-acc
-      :pointfun #'sail-frame-sun-fixed
-      :lightness 0d0
-      :area 1200d-6
-      :mass 45d0
-      :optical nil
-      :basis *j2000*
-      :t0 t0
-      :tf tf
-      :x0 (position-velocity *earth* t0)
-      :rs nil
-      :rs-table (list 
-		 (list t1 (rotor (bve3 :e1e2 1) (atan (/ (sqrt 2)))))
-		 (list tf (rotor (bve3 :e1e2 1) (atan (/ (sqrt 2))))))
-      :outfile "sail-3d-cart-solar-table-eg.dat"))
-   :ks-solar-kepler
-   (let* ((t0 (coerce (encode-universal-time 0 0 0 16 12 2013 0) 'double-float))
-	  (tf-approx (coerce (encode-universal-time 0 0 0 16 12 2014 0) 'double-float))
-	  (sf (/ (- tf-approx t0) *au*)))
-     (make-instance
-      'sail
-      :eom #'eom2
-      :cb *sun*
-      :sun *sun*
-      :gfun #'gravity2
-      :accfun #'no-sail
-      :pointfun #'sail-frame-sun-normal
-      :lightness 0d0
-      :area 1200d-6
-      :mass 45d0
-      :optical nil
-      :basis *j2000*
-      :t0 0
-      :tf sf
-      :x0 (to-initial-ks (position-velocity *earth* t0) t0 (make-instance 'sail :basis *j2000* :cb *sun*))
-      :rs nil
-      :outfile "sail-3d-ks-solar-kepler-eg.dat"))
-   :ks-solar-normal
-   (let* ((t0 (coerce (encode-universal-time 0 0 0 16 12 2013 0) 'double-float))
-	  (tf-approx (coerce (encode-universal-time 0 0 0 16 12 2014 0) 'double-float))
-	  (sf (/ (- tf-approx t0) *au*)))
-     (make-instance
-      'sail
-      :eom #'eom2
-      :cb *sun*
-      :sun *sun*
-      :gfun #'gravity2
-      :accfun #'sail-flat-ideal-acc
-      :pointfun #'sail-frame-sun-normal
-      :lightness 0d0
-      :area 1200d-6
-      :mass 45d0
-      :optical nil
-      :basis *j2000*
-      :t0 0
-      :tf sf
-      :x0 (to-initial-ks (position-velocity *earth* t0) t0 (make-instance 'sail :basis *j2000* :cb *sun*))
-      :rs nil
-      :outfile "sail-3d-ks-solar-normal-eg.dat"))
-   :ks-solar-fixed
-   (let* ((t0 (coerce (encode-universal-time 0 0 0 16 12 2013 0) 'double-float))
-	  (tf-approx (coerce (encode-universal-time 0 0 0 16 12 2014 0) 'double-float))
-	  (sf (/ (- tf-approx t0) *au*)))
-     (make-instance
-      'sail
-      :eom #'eom2
-      :cb *sun*
-      :sun *sun*
-      :gfun #'gravity2
-      :accfun #'sail-flat-ideal-acc
-      :pointfun #'sail-frame-sun-fixed
-      :lightness 0d0
-      :area 1200d-6
-      :mass 45d0
-      :optical nil
-      :basis *j2000*
-      :t0 0
-      :tf sf
-      :x0 (to-initial-ks (position-velocity *earth* t0) t0 (make-instance 'sail :basis *j2000* :cb *sun*))
-      :rs (rotor (bve3 :e1e2 1) (atan (/ (sqrt 2))))
-      :outfile "sail-3d-ks-solar-fixed-eg.dat"))
-   :ks-solar-table
-   (let* ((t0 (coerce (encode-universal-time 0 0 0 16 12 2013 0) 'double-float))
-	  (tf-approx (coerce (encode-universal-time 0 0 0 16 12 2015 0) 'double-float))
-	  (sf (/ (- tf-approx t0) *au*)))
-     (make-instance
-      'sail
-      :eom #'eom2
-      :cb *sun*
-      :sun *sun*
-      :gfun #'gravity2
-      :accfun #'sail-flat-ideal-acc
-      :pointfun #'sail-frame-sun-fixed
-      :lightness 0d0
-      :area 1200d-6
-      :mass 45d0
-      :optical nil
-      :basis *j2000*
-      :t0 0
-      :tf sf
-      :x0 (to-initial-ks (position-velocity *earth* t0) t0 (make-instance 'sail :basis *j2000* :cb *sun*))
-      :rs-table (list 
-		 (list (/ sf 2) (rotor (bve3 :e1e2 1) (atan (/ (sqrt 2)))))
-		 (list sf (rotor (bve3 :e1e2 1) (atan (/ (sqrt 2))))))
-      :outfile "sail-3d-ks-solar-table-eg.dat"))))
+      :outfile "example-fixed.dat"))))

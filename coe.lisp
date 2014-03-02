@@ -140,7 +140,7 @@ BASIS list of 3 orthogonal basis vectors to express position & velocity in"
 	  (let* ((rm (norme r)) ; radius
 		 (p (* a (- 1 (expt e 2)))) ; semi latus rectum
 		 (fv (funcall accfun f x sc)) ; force vector
-		 (obasis (rvbasis r v)) ; orbit basis from position/velocity
+		 (obasis (rv-frame f x sc)) ; orbit basis from position/velocity
 		 (sf (scalar (*i fv (first obasis)))) ; radial force
 		 (tf (scalar (*i fv (second obasis)))) ; transverse force
 		 (wf (scalar (*i fv (third obasis)))) ; orbit normal force
