@@ -3,19 +3,24 @@
 (defparameter *examples*
   (make-hash
    :kepler
-   (let ((t0 (coerce (encode-universal-time 0 0 0 27 2 2014 0) 'double-float))
-	 (tf (coerce (encode-universal-time 0 0 0 27 2 2015 0) 'double-float)))
-     (make-instance
-      'sc
-      :eom #'eom
-      :cb *ssb*
-      :gfun #'gravity
-      :afun #'no-sail
-      :iframe *j2000*
-      :t0 t0
-      :tf tf
-      :x0 (position-velocity *earth* t0)
-      :outfile "example-kepler.dat"))
+   (let* ((t0 (coerce (encode-universal-time 0 0 0 27 2 2014 0) 'double-float))
+	  (tf (coerce (encode-universal-time 0 0 0 27 2 2015 0) 'double-float))
+	  (sc (make-instance
+	       'sc
+	       :eom #'eom
+	       :cb *ssb*
+	       :gfun #'gravity
+	       :afun #'no-sail
+	       :iframe *j2000*
+	       :t0 t0
+	       :tf tf
+	       :x0 (position-velocity *earth* t0)
+	       :outfile "example-kepler.dat")))
+     (with-slots (x0) sc
+       (with-slots (tm (sc-x0 sc)) x0
+	 (setf tm t0)
+	 (setf sc-x0 sc)
+	 sc)))
    :normal
    (let ((t0 (coerce (encode-universal-time 0 0 0 27 2 2014 0) 'double-float))
 	 (tf (coerce (encode-universal-time 0 0 0 27 2 2015 0) 'double-float)))
@@ -164,3 +169,4 @@
 	:x0 (to-ks x0 t0 fixed)
 	:rs rs
 	:outfile "example-fixed-ks.dat")))))
+
