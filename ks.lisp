@@ -100,28 +100,6 @@
 
 ;;; Equation of motion
 
-#+null(defmethod eom (s (x ksstate) sc)
-  (with-slots (alpha beta e tm) x
-    (let* ((xspin (to-spinor x s sc))
-	   (xcart (to-cartesian xspin s sc))
-	   (r (slot-value xcart 'r))
-	   (v (slot-value xcart 'v))
-	   (x0 (slot-value sc 'x0))
-	   (e0 (slot-value x0 'e))
-	   (hk0 (- e0))
-	   (w0 (sqrt (/ hk0 2)))
-	   (rm (norme r))
-	   (u (slot-value xspin 'u))
-	   (hk (- e))
-	   (w (/ (- hk hk0) 2))
-	   (ff (- (/ (*g f r u) 2) (* w u))))
-      (make-instance
-       'ksstate
-       :alpha (- (* ff (/ (sin (* w0 s)) w0)))
-       :beta (* ff (/ (cos (* w0 s)) w0))
-       :e (* rm (scalar (*i v f)))
-       :tm rm))))
-
 (defderived xspin (s (x ksstate) sc)
     "Spinor state"
   (to-spinor x s sc))
