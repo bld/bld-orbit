@@ -43,21 +43,32 @@
 (defmethod time-of (s (x spinorstate))
   (slot-value x 'tm))
 
+(defderived e (s (x spinorstate) sc)
+    "Keplerian orbital energy"
+  (with-slots (duds) x
+    (with-slots (cb) sc
+      (with-slots (mu) cb
+	(with-derived (rm) s x sc
+	  (/ (- (* 2 (norme2 duds)) mu) rm))))))
+
+(defderived rm (s (x spinorstate) sc)
+    "Orbit radius of spinor state"
+  (with-slots (u) x
+    (norme2 u)))
+
 (defmethod eom (s (x spinorstate) sc)
   "Spinor equations of motion: 2 dU/ds - E U = f r U, dt/ds = |r|"
   (with-slots (u duds tm) x
     (with-slots (cb iframe afun) sc
       (with-slots (mu) cb
-	(let* ((rm (norme2 u))
-	       (e (/ (- (* 2 (norme2 duds)) mu) rm))
-	       (r (spin (first iframe) u))
-	       (v (* 2 (*g3 duds (first iframe) (revg u))))
-	       (f (funcall afun s x sc)))
+	(with-derived (a rm xcart e) s x sc
+	(let* ((r (r xcart))
+	       (v (v xcart)))
 	  (make-instance
 	   'spinorstate
 	   :u duds
-	   :duds (/ (+ (*g3 f r u) (* e u)) 2)
-	   :tm (norme2 u)))))))
+	   :duds (/ (+ (*g3 a r u) (* e u)) 2)
+	   :tm rm)))))))
 
 (defmethod to-cartesian ((x spinorstate) s sc)
   "Convert spinor state to cartesian coordinates given S and X"
