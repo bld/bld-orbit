@@ -34,6 +34,7 @@
    (ls :initarg :ls :documentation "Solar luminosity at 1 AU in W/m^2")
    (iframe :initarg :iframe :documentation "Inertial frame of body's orbit")
    (jd :initarg :jd :documentation "Julian date of ephemeris")
+   (utc :initarg :utc :documentation "UTC of ephemeris")
    (ec :initarg :ec :documentation "Eccentricity")
    (qr :initarg :qr :documentation "Periapsis distance")
    (in :initarg :in :documentation "Inclination")
@@ -56,7 +57,7 @@
 (defmethod initialize-instance :after ((b body) &key)
   (when (every #'(lambda (slot) (slot-boundp b slot))
 	       '(a ec in om w jd))
-    (with-slots (cb mu jd ec qr in om w tp n ma ta a ad pr xcoe xcart xspin xks x0) b
+    (with-slots (cb mu jd utc ec qr in om w tp n ma ta a ad pr xcoe xcart xspin xks x0) b
       (setf xcoe (make-instance
 		  'coestate
 		  :a a
@@ -65,8 +66,8 @@
 		  :lan (rad om)
 		  :aop (rad w)
 		  :tm jd))
-      (setf xcart (to-cartesian xcoe 0 b))
-      (setf xspin (to-spinor xcart tp b))
+      (setf xcart (to-cartesian xcoe (rad ta) b))
+      (setf xspin (to-spinor xcart utc b))
       (setf x0 xspin)
       (setf xks (to-ks xspin 0 b)))))
 
@@ -85,6 +86,16 @@
       ;; Return 0 position & velocity if there's no central body
       (make-instance 'cartstate :r (ve3) :v (ve3))))
 
+(defmethod eom (tm (x cartstate) (b body))
+  (with-slots (v (tm-x tm)) x
+    (setf tm-x tm)
+    (make-instance
+     'cartstate
+     :r v
+     :v (gravity tm x b)
+     :tm tm
+     :sc b)))
+
 (defparameter *ssb* (make-instance 'body :mu 1.32712440018d11))
 
 (defparameter *sun* 
@@ -95,6 +106,7 @@
    :ls 1361.3477d0
    :iframe *j2000*
    :jd 2456636.500000000d0
+   :utc (coerce (encode-universal-time 0 0 0 10 12 2013 0) 'double-float)
    :EC 8.546770937522187d-01 :QR 2.906237974575245d+04 :IN 2.400537289551978d+00
    :OM 5.010638625423464d+01 :W 6.029921568009870d+01 :Tp 2456456.332998391241d0
    :N 1.145648031345176d-05 :MA 1.783364866902255d+02 :TA 1.797489228422292d+02
@@ -109,6 +121,7 @@
    :ls nil
    :iframe *j2000*
    :jd 2457388.500000000d0
+   :utc (coerce (encode-universal-time 0 0 0 1 1 2016 0) 'double-float)
    :ec 1.621551291914839d-02
    :qr 1.471327388424463d+08
    :in 1.148321892914738d-02
@@ -130,6 +143,7 @@
    :ls nil
    :iframe *j2000*
    :jd 2456636.500000000d0
+   :utc (coerce (encode-universal-time 0 0 0 1 1 2016 0) 'double-float)
    :ec 9.656324402943112d-02
    :qr 2.051027822461357d+08
    :in 1.847743229702892d+00
@@ -151,7 +165,13 @@
    :ls nil
    :iframe *j2000*
    :jd 2457388.500000000d0
+   :utc (coerce (encode-universal-time 0 0 0 1 1 2016 0) 'double-float)
    :EC 6.431655045408705d-02 :QR 3.512367974406679d+05 :IN 5.071049688763354d+00
    :OM 1.746561927360046d+02 :W 2.015670143350679d+02 :Tp  2457376.756737075746d0
    :N 1.553730434340702d-04 :MA 1.576442736350183d+02 :TA 1.602521673187281d+02
    :A 3.753799403111416d+05 :AD 3.995230831816153d+05 :PR 2.317004237306838d+06))
+
+(defun eom-body-ks (s tm b)
+  "KS equation of motion for propagating a body state"
+  (with-slots (u duds tm) (to-spinor (slot-value b 'xks) s b)
+    (norme2 u)))
