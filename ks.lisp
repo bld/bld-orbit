@@ -20,6 +20,13 @@
 
 ;;; KS state conversion routines
 
+(defun ks-state-constants (sc)
+  (with-slots (x0) sc
+    (make-hash*
+     :e0 (energy x0 sc)
+     :hk0 (- e0)
+     :w0 (sqrt (/ hk0 2)))))
+
 (defmethod to-spinor ((x ksstate) s sc)
   "Convert KS state to spinor state"
   (with-slots (alpha beta e tm) x

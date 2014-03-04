@@ -21,5 +21,6 @@
    (tf :initarg :tf :documentation "Final time")
    (x0 :initarg :x0 :documentation "Initial state")
    (rs :initarg :rs :documentation "Spacecraft orientation wrt orbit frame")
-   (outfile :initarg :outfile :documentation "Output filename"))
+   (outfile :initarg :outfile :documentation "Output filename")
+   (constants :initarg :constants :documentation "Extra constants used in EOM"))
   (:documentation "Spacecraft (solar sail) orbit problem"))
