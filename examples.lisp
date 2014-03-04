@@ -169,4 +169,3 @@
 	:x0 (to-ks x0 t0 fixed)
 	:rs rs
 	:outfile "example-fixed-ks.dat")))))
-
