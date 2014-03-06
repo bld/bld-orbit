@@ -1,10 +1,25 @@
 (ql:quickload :lol)
 (ql:quickload :bld-utils)
+(ql:quickload :unit-formulas)
+(ql:quickload :bld-e3)
+(ql:quickload :bld-ga)
+(ql:quickload :bld-gen)
 
 (defpackage :chebyshev
-  (:use :cl :lol :bld-utils))
+  (:use :cl :lol :bld-utils :unit-formulas :bld-ga :bld-e3)
+  (:shadowing-import-from :bld-gen
+    + - * / expt
+    sin cos tan
+    atan asin acos
+    sinh cosh tanh
+    asinh acosh atanh
+    log exp sqrt abs
+    min max signum))
 
 (in-package :chebyshev)
+
+(defmethod print-object ((o hash-table) stream)
+  (printhash o stream))
 
 (defclass record ()
   ((start :initarg :start)
@@ -16,7 +31,9 @@
 (defmethod rv ((record record) date)
   (with-slots (start duration xcoeffs ycoeffs zcoeffs) record
     "Position and velocity from Chebyshev polynomials"
-    (let* ((tm (/ (* 2 (- (- date start) duration)) duration))
+    (let* ((tm (/ (- (* 2 (- date start))
+		     duration)
+		  duration))
 	   (twotm (* 2 tm))
 	   (pkm1 tm)
 	   (pk tm)
@@ -46,8 +63,8 @@
 	 finally (return
 		   (let ((vscale (/ 2 duration)))
 		     (make-hash
-		      :r (vector xp yp zp)
-		      :v (vector (* xv vscale) (* yv vscale) (* zv vscale)))))))))
+		      :r (ve3 :e1 xp :e2 yp :e3 zp)
+		      :v (ve3 :e1 (* xv vscale) :e2 (* yv vscale) :e3 (* zv vscale)))))))))
 
 (defmethod import-record (record file position order)
   (with-open-file (s file)
@@ -76,3 +93,4 @@
 
 (defparameter *mercury1* (import-record 1 "p:/src/ephemeris/ascp1900.421" 3 14))
 
+(defparameter *earth1* (import-record 1 "p:/src/ephemeris/ascp1900.421" 231 13))
