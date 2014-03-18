@@ -91,6 +91,6 @@
 		    :ycoeffs (make-array order :initial-contents y)
 		    :zcoeffs (make-array order :initial-contents z)))))))
 
-(defparameter *mercury1* (import-record 1 "p:/src/ephemeris/ascp1900.421" 3 14))
+(defparameter *mercury1* (import-record 1 "de421-ascii/ascp1900.421" 3 14))
 
-(defparameter *earth1* (import-record 1 "p:/src/ephemeris/ascp1900.421" 231 13))
+(defparameter *earth1* (import-record 1 "de421-ascii/ascp1900.421" 231 13))
