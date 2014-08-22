@@ -4,7 +4,7 @@
 
 (defun rv2coe (rv vv mu basis)
   "Return classical orbital elements given position & velocity vectors, gravitational parameter, and a list of 3 basis vectors"
-  (flet ((energy-rv (r v mu) ; Orbit energy from position, velocity, & gravitational parameter
+  (labels ((energy-rv (r v mu) ; Orbit energy from position, velocity, & gravitational parameter
 	   (- (/ (* v v) 2)
 	      (/ mu r)))
 	 (sma-rv (r v mu) ; semi-major axis from position, velocity, & gravitational parameter
@@ -45,7 +45,7 @@
        :sma (sma-rv (norme rv) (norme vv) mu)
        :ecc (norme eccv)
        :inc (inc-rv mombv basis)
-       :lan (raan-rv nodev basis)
+       :lan (lan-rv nodev basis)
        :aop (aop-rv nodev eccv mombv)
        :truan (truan-rv eccv rv mombv)))))
 
