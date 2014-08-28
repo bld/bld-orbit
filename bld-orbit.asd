@@ -3,7 +3,7 @@
   :version "0.0.1"
   :license "MIT"
   :description "Orbital mechanics library employing geometric algebra. Currently working to solve solar sail trajectories."
-  :depends-on ("bld-ga" "bld-e2" "bld-e3" "bld-ode" "bld-utils" "bld-gen" "anaphora" "local-time" "geco" "alexandria")
+  :depends-on ("bld-ga" "bld-e2" "bld-e3" "bld-ode" "bld-utils" "bld-gen" "anaphora" "local-time" "alexandria" "cl-spice")
   :serial t
   :components
   ((:file "package")
@@ -20,9 +20,9 @@
    (:file "frames")
    (:file "point")
    (:file "force")
-   (:file "body")
+   ;;(:file "body")
+   (:file "body-spice")
    (:file "propagate")
    (:file "export")
    (:file "examples")
-   ;;(:file "geco-ks")))
    ))
