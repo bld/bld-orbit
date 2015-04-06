@@ -1,0 +1,480 @@
+#LyX 2.1 created this file. For more info see http://www.lyx.org/
+\lyxformat 474
+\begin_document
+\begin_header
+\textclass article
+\use_default_options true
+\maintain_unincluded_children false
+\language english
+\language_package default
+\inputencoding auto
+\fontencoding global
+\font_roman default
+\font_sans default
+\font_typewriter default
+\font_math auto
+\font_default_family default
+\use_non_tex_fonts false
+\font_sc false
+\font_osf false
+\font_sf_scale 100
+\font_tt_scale 100
+\graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
+\paperfontsize default
+\use_hyperref false
+\papersize default
+\use_geometry false
+\use_package amsmath 1
+\use_package amssymb 1
+\use_package cancel 1
+\use_package esint 1
+\use_package mathdots 1
+\use_package mathtools 1
+\use_package mhchem 1
+\use_package stackrel 1
+\use_package stmaryrd 1
+\use_package undertilde 1
+\cite_engine basic
+\cite_engine_type default
+\biblio_style plain
+\use_bibtopic false
+\use_indices false
+\paperorientation portrait
+\suppress_date false
+\justification true
+\use_refstyle 1
+\index Index
+\shortcut idx
+\color #008000
+\end_index
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation indent
+\paragraph_indentation default
+\quotes_language english
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\tracking_changes false
+\output_changes false
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
+\end_header
+
+\begin_body
+
+\begin_layout Title
+Perturbed Kepler Orbital Element Problem in Geometric Algebra
+\end_layout
+
+\begin_layout Author
+Benjamin L.
+ Diedrich
+\end_layout
+
+\begin_layout Section
+Introduction
+\end_layout
+
+\begin_layout Standard
+Arakida and Fukushima
+\begin_inset CommandInset citation
+LatexCommand cite
+key "1538-3881-121-3-1764"
+
+\end_inset
+
+ cast the Kustanheimo-Stiefel (KS) equations of motion in a compact and
+ convenient quaternion notation involving the perturbation of orbit elements.
+ Hestenes cast the KS equations into geometric algebra, including perturbed
+ spinor equations and unperturbed orbital elements.
+ This equation was slightly reordered by Doran and Lasenby because they
+ defined rotors reversed from Hestene's formulation.
+ This paper extends Hestenes derivation using Doran's and Lasenby's formulation
+ to perturbed orbital elements in geometric algebra, using Arakida and Fukushima
+'s paper as a guide.
+\end_layout
+
+\begin_layout Section
+Derivation
+\end_layout
+
+\begin_layout Standard
+The equation of motion in perturbed spinor formulation is 
+\begin_inset Formula 
+\[
+U''-\frac{1}{2}EU=\mathbf{f}\mathbf{r}U
+\]
+
+\end_inset
+
+
+\begin_inset Formula $U$
+\end_inset
+
+ is the spinor representing the position 
+\begin_inset Formula $\mathbf{r}$
+\end_inset
+
+.
+ Given basis vector 
+\begin_inset Formula $\mathbf{e}_{1}$
+\end_inset
+
+, 
+\begin_inset Formula $\mathbf{r}=U\mathbf{e}_{1}U^{\dagger}$
+\end_inset
+
+.
+ The symbol
+\begin_inset Formula $\dagger$
+\end_inset
+
+ represents the reverse of 
+\begin_inset Formula $U$
+\end_inset
+
+.
+ The vector 
+\begin_inset Formula $\mathbf{f}$
+\end_inset
+
+ is the perturbing force.
+ The accent '' represents the double-derivative of 
+\begin_inset Formula $U$
+\end_inset
+
+ with respect to 
+\begin_inset Formula $s$
+\end_inset
+
+, while a single accent ' represents the single derivative 
+\begin_inset Formula $\frac{d}{ds}=r\frac{d}{dt}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+From Arakida and Fukushima, the equation of motion is
+\begin_inset Formula 
+\[
+\mathbf{u}''+\omega_{0}^{2}\mathbf{u}\equiv\mathbf{F}
+\]
+
+\end_inset
+
+where 
+\begin_inset Formula $\mathbf{u}\equiv U$
+\end_inset
+
+ and 
+\begin_inset Formula $\mathbf{F}$
+\end_inset
+
+ is an effective force.
+ The following relations apply.
+ The negative of the Kepler orbit energy:
+\begin_inset Formula 
+\[
+h_{k}=-E
+\]
+
+\end_inset
+
+The average angular velocity of the initial, unperturbed orbit, where 
+\begin_inset Formula $h_{k0}$
+\end_inset
+
+ is the negative Kepler orbit energy of the initial unperturbed orbit: 
+\begin_inset Formula 
+\begin{eqnarray*}
+\omega_{0}^{2} & = & \frac{1}{2}h_{k0}\\
+ & = & -\frac{1}{2}E_{0}
+\end{eqnarray*}
+
+\end_inset
+
+The work done by the perturbing force:
+\begin_inset Formula 
+\begin{eqnarray*}
+W & = & \frac{1}{2}h_{k}-\omega_{0}^{2}\\
+ & = & \frac{1}{2}\left(h_{k}-h_{k0}\right)\\
+ & = & \frac{1}{2}\left(E_{0}-E\right)
+\end{eqnarray*}
+
+\end_inset
+
+which leads to:
+\begin_inset Formula 
+\[
+h_{k}=2\left(W+\omega_{0}^{2}\right)
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Using these relations, we can manipulate the geometric algebra formulation
+ as follows.
+\begin_inset Formula 
+\begin{eqnarray*}
+U''+\frac{1}{2}h_{k}U & = & \frac{1}{2}\mathbf{f}\mathbf{r}U\\
+U''+\left(W+\omega_{0}^{2}\right)U & = & \frac{1}{2}\mathbf{f}\mathbf{r}U\\
+U''+\omega_{0}^{2}U & = & \frac{1}{2}\mathbf{f}\mathbf{r}U-WU\\
+ & = & \frac{1}{2}\mathbf{f}\mathbf{r}U-\frac{1}{2}\left(E_{0}-E\right)U\\
+ & = & \frac{1}{2}\left(\mathbf{f}\mathbf{r}-E_{0}-E\right)U
+\end{eqnarray*}
+
+\end_inset
+
+This means that
+\begin_inset Formula 
+\begin{eqnarray*}
+\mathbf{F} & \equiv & \frac{1}{2}\mathbf{f}\mathbf{r}U-WU\\
+ &  & \frac{1}{2}\left(\mathbf{f}\mathbf{r}-E_{0}-E\right)U
+\end{eqnarray*}
+
+\end_inset
+
+which allows us to rewrite the differential equations from Arakida and Fukushima.
+\end_layout
+
+\begin_layout Standard
+Some further definitions are required.
+ The orbital elements Arakida and Fukushima use are 
+\begin_inset Formula $\left(\alpha,\beta,E,t\right)$
+\end_inset
+
+ where
+\begin_inset Formula 
+\begin{eqnarray*}
+\alpha & \equiv & \mathbf{u}\cos\omega_{0}s-\frac{\mathbf{u}'}{\omega_{0}}\sin\omega_{0}s\\
+\beta & \equiv & \mathbf{u}\sin\omega_{0}s+\frac{\mathbf{u}'}{\omega_{0}}\cos\omega_{0}s
+\end{eqnarray*}
+
+\end_inset
+
+
+\begin_inset Formula $W$
+\end_inset
+
+ is defined previously, and 
+\begin_inset Formula $t_{0}$
+\end_inset
+
+ is the time at 
+\begin_inset Formula $s=0$
+\end_inset
+
+.
+ The meaning of 
+\begin_inset Formula $\alpha$
+\end_inset
+
+ and 
+\begin_inset Formula $\beta$
+\end_inset
+
+ in geometric algebra can be found by considering their relation to 
+\begin_inset Formula $U$
+\end_inset
+
+ and 
+\begin_inset Formula $U'$
+\end_inset
+
+ at 
+\begin_inset Formula $s=0$
+\end_inset
+
+, which are denoted by 
+\begin_inset Formula $U_{0}$
+\end_inset
+
+ and 
+\begin_inset Formula $U'_{0}$
+\end_inset
+
+.
+\begin_inset Formula 
+\begin{eqnarray*}
+\alpha|_{s=0} & = & U_{0}\\
+\beta|_{s=0} & = & \frac{U'_{0}}{\omega_{0}}
+\end{eqnarray*}
+
+\end_inset
+
+The position spinor can then be evaluated according to Hestenes as:
+\begin_inset Formula 
+\[
+U=U_{0}\cos\omega_{0}s+\frac{U'_{0}}{\omega_{0}}\sin\omega_{0}s
+\]
+
+\end_inset
+
+Therefore:
+\begin_inset Formula 
+\[
+U=\alpha\cos\omega_{0}s+\beta\sin\omega_{0}s
+\]
+
+\end_inset
+
+We can prove this relation is correct by plugging in the expressions for
+ 
+\begin_inset Formula $\alpha$
+\end_inset
+
+ and 
+\begin_inset Formula $\beta$
+\end_inset
+
+:
+\begin_inset Formula 
+\begin{eqnarray*}
+U & = & \left(U\cos\omega_{0}s-\frac{U'}{\omega_{0}}\sin\omega_{0}s\right)\cos\omega_{0}s+\left(U\sin\omega_{0}s+\frac{U'}{\omega_{0}}\cos\omega_{0}s\right)\sin\omega_{0}s\\
+ & = & U\left(\cos^{2}\omega_{0}s+\sin^{2}\omega_{0}s\right)\\
+ & = & U
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+To find the expression for 
+\begin_inset Formula $U'$
+\end_inset
+
+, use the equation for 
+\begin_inset Formula $\alpha$
+\end_inset
+
+ (or 
+\begin_inset Formula $\beta$
+\end_inset
+
+):
+\begin_inset Formula 
+\begin{eqnarray*}
+\alpha & = & U\cos\omega_{0}s-\frac{U'}{\omega_{0}}\sin\omega_{0}s\\
+U' & = & \frac{\omega_{0}}{\sin\omega_{0}s}\left(U\cos\omega_{0}s-\alpha\right)\\
+ & = & \frac{\omega_{0}}{\sin\omega_{0}s}\left(\left(\alpha\cos\omega_{0}s+\beta\sin\omega_{0}s\right)\cos\omega_{0}s-\alpha\right)\\
+ & = & \frac{\omega_{0}}{\sin\omega_{0}s}\left(\alpha\cos^{2}\omega_{0}s+\beta\sin\omega_{0}s\cos\omega_{0}s-\alpha\right)\\
+ & = & \frac{\omega_{0}}{\sin\omega_{0}s}\left(\alpha\left(\cos^{2}\omega_{0}s-1\right)+\beta\sin\omega_{0}s\cos\omega_{0}s\right)\\
+ & = & \frac{\omega_{0}}{\sin\omega_{0}s}\left(-\alpha\sin^{2}\omega_{0}s+\beta\sin\omega_{0}s\cos\omega_{0}s\right)\\
+ & = & \omega_{0}\left(\beta\cos\omega_{0}s-\alpha\sin\omega_{0}s\right)
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+From Arakida and Fukishima, the expression relating time and initial time
+ is:
+\begin_inset Formula 
+\[
+t-t_{0}=\frac{\alpha^{2}+\beta^{2}}{2}s+\frac{\alpha^{2}-\beta^{2}}{4\omega_{0}}\sin2\omega_{0}s-\frac{\alpha\cdot\beta}{2\omega_{0}}\cos2\omega_{0}s
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Now, we are ready to use the equations of motion from Arakida and Fukushima,
+ mapped into geometric algebra:
+\begin_inset Formula 
+\begin{eqnarray*}
+\alpha' & = & -\frac{\mathbf{F}}{\omega_{0}}\sin\omega_{0}s\\
+\beta' & = & \frac{\mathbf{F}}{\omega_{0}}\cos\omega_{0}s
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+The derivative for the orbital energy must be derived separately.
+ From Hestenes:
+\begin_inset Formula 
+\begin{eqnarray*}
+\dot{E} & = & \mathbf{v}\cdot\mathbf{f}\\
+E' & = & r\mathbf{v}\cdot\mathbf{f}
+\end{eqnarray*}
+
+\end_inset
+
+This translates to W as:
+\begin_inset Formula 
+\begin{eqnarray*}
+-\frac{E}{2} & = & \frac{1}{2}h_{k}\\
+ & = & \frac{1}{2}\left(h_{k}+h_{k0}-h_{k0}\right)\\
+ & = & W+\omega_{0}\\
+-\frac{E'}{2} & = & W'\\
+W' & = & -\frac{r}{2}\mathbf{v}\cdot\mathbf{f}
+\end{eqnarray*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Finally, for time 
+\begin_inset Formula $t$
+\end_inset
+
+:
+\begin_inset Formula 
+\[
+\frac{dt}{ds}=t'=r
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+For 
+\begin_inset Formula $t_{0}$
+\end_inset
+
+, from Arakida and Fukushima:
+\begin_inset Formula 
+\[
+t_{0}'=\frac{1}{\omega_{0}}\mathbf{F}\cdot\left[\left(\alpha\sin\omega_{0}s-\beta\cos\omega_{0}s\right)s+\frac{1}{2\omega_{0}}\left(\alpha\cos\omega_{0}s+\beta\sin\omega_{0}s\right)\right]
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset CommandInset bibtex
+LatexCommand bibtex
+bibfiles "references"
+options "plain"
+
+\end_inset
+
+
+\end_layout
+
+\end_body
+\end_document
