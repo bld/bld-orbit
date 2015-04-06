@@ -1,3 +1,5 @@
+;;;; Spinor equations of motion
+
 (in-package :bld-orbit)
 
 (defclass spinor-state ()
@@ -9,21 +11,14 @@
   (with-slots (u duds utc) x
     (format stream "#<SPINOR-STATE :U ~a :DUDS ~a :UTC ~a>" u duds utc)))
 
-(defstatearithmetic spinor-state (u duds))
+(defstatearithmetic spinor-state (u duds utc))
 
-(defclass spinor-problem ()
-  (central-body
-   ref
-   utc0
-   utcf
-   eom
-   x0
-   hmin
-   hmax
-   tol
-   iframe))
+(defparameter *iframe*
+  (list (ve3 :e1 1)
+	(ve3 :e2 1)
+	(ve3 :e3 1)))
 
-(defmethod eom (s (x spinor-state) (p spinor-problem))
+(defmethod eom (s (x spinor-state) p)
   "Keplerian spinor equations of motion given independent variable S, spinor state, and spinor problem"
   (with-slots (u duds utc) x
     (with-slots (central-body) p
@@ -34,7 +29,7 @@
 	   'spinor-state
 	   :u duds
 	   :duds (/ (* e u) 2)
-	   :tm rm))))))
+	   :utc rm))))))
 
 (defun recover-rotor-3d (fs es)
   (let* ((esr (apply #'recipbvs es))
@@ -52,25 +47,88 @@
 	  (unitg (*i r h))
 	  (unitg (dual h)))))
 
-(defmethod to-spinor (utc (x cartesian-state) &key problem)
+(defmethod to-spinor-state (utc (x cartesian-state) &key (iframe *iframe*))
   "Given time (UTC), cartesian state, and cartesian problem, return spinor state."
-  (with-slots (iframe) problem
-    (with-slots (r v) x
-      (let ((u (recover-spinor-3d (norme2 r) (rv-frame r v) iframe)))
-	(values
-	 (make-instance
-	  'spinor-state
-	  :u u
-	  :duds (/ (*g3 v u (first iframe)) 2)
-	  :utc utc)
-	 0)))))
-
-(defmethod to-cartesian (s (x spinor-state) &key problem)
-  (with-slots (u duds utc) x
-    (with-slots (iframe) problem
+  (with-slots (r v) x
+    (let ((u (recover-spinor-3d (norme r) (rv-frame r v) *iframe*)))
       (values
        (make-instance
-	'cartesian-state
-	:r (spin (first iframe) u)
-	:v (graden (* 2 (*g3 (/ duds (norme2 u)) (ve3 :e1 1) (revg u))) 1))
-       utc))))
+	'spinor-state
+	:u u
+	:duds (/ (*g3 v u (first *iframe*)) 2)
+	:utc utc)
+       0))))
+
+(defmethod to-cartesian-state (s (x spinor-state) &key (iframe *iframe*))
+  (with-slots (u duds utc) x
+    (values
+     (make-instance
+      'cartesian-state
+      :r (spin (first iframe) u)
+      :v (graden (* 2 (*g3 (/ duds (norme2 u)) (ve3 :e1 1) (revg u))) 1))
+     utc)))
+
+(defclass spinor-problem (cartesian-problem)
+  ((x0s :initarg :x0s)
+   (s0 :initarg :s0 :initform 0)
+   (sfmax :initarg :sfmax)
+   (stopfn :initarg :stopfn)
+   (stopval :initarg :stopval)
+   (stoptest :initarg :stoptest)
+   (stoptol :initarg :stoptol)))
+
+(defmethod to-spinor-problem ((p cartesian-problem))
+  (with-slots (central-body ref utc0 utcf eom x0 hmin hmax tol) p
+    (make-instance
+     'spinor-problem
+     ;; Cartesian problem slots
+     :central-body central-body
+     :ref ref
+     :utc0 utc0
+     :utcf utcf
+     :eom eom
+     :x0 x0
+     :hmin hmin
+     :hmax hmax
+     :tol (/ tol 100)
+     ;; New spinor slots
+     :x0s (to-spinor-state utc0 x0 :iframe *iframe*)
+     :s0 0
+     :sfmax (/ pi 10)
+     :stopfn #'(lambda (s x p) (slot-value x 'utc))
+     :stopval utcf
+     :stoptest #'>=
+     :stoptol 1d-6)))
+
+(defmethod propagate ((p spinor-problem))
+  (with-slots (eom s0 sfmax x0s stopfn stopval stoptest stoptol tol) p
+    (rka-stop-nr
+     eom s0 sfmax x0s
+     :param p
+     :stopfn stopfn
+     :stopval stopval
+     :stoptest stoptest
+     :stoptol stoptol
+     :tol tol)))
+
+(defmethod propagate-spinor ((p cartesian-problem))
+  "Propagate cartesian problem with spinor equations of motion"
+  (with-slots (utc0 utcf eom x0 tol central-body) p
+    (with-kernel (slot-value central-body 'ephemeris)
+      (let ((x0s (to-spinor-state utc0 x0 :problem p))
+	    (s0 0)
+	    (sfmax (/ pi 10)))
+	(describe x0s)
+	(rka-stop-nr
+	 eom s0 sfmax x0s
+	 :param p
+	 :stopfn #'(lambda (s x p) (slot-value x 'utc))
+	 :stopval (slot-value p 'utcf)
+	 :stoptest #'>=
+	 :stoptol 1d-6
+	 :tol (/ tol 100))))))
+
+(defmethod to-cartesian-results (results)
+  (loop for (s xs) in results
+     collect (reverse (multiple-value-list (to-cartesian-state s xs :iframe *iframe*)))))
+

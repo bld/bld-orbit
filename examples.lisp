@@ -35,13 +35,18 @@
    :ephemeris *planetary-ephemeris-path*
    :mu 398600.4415d0))
 
-(defclass cartesian-test-01 (cartesian-problem)
-  ((central-body :initform *sun*)
-   (ref :initform :eclipj2000)
-   (utc0 :initform *utc-j2000*)
-   (utcf :initform (+ *utc-j2000* (* 365.25 (convert-unit 'day 'second))))
-   (eom :initform #'eom)
-   (x0 :initform (to-cartesian *utc-j2000* *earth* :observer :sun :ref :eclipj2000))
-   (hmin :initform (/ 27000 2))
-   (hmax :initform 27000)
-   (tol :initform 1d-11)))
+(defun cartesian-test-01 ()
+  (make-instance
+   'cartesian-problem
+   :central-body *sun*
+   :ref :eclipj2000
+   :utc0 *utc-j2000*
+   :utcf (+ *utc-j2000* (* 2 365.25 (convert-unit 'day 'second)))
+   :eom #'eom
+   :x0 (to-cartesian *utc-j2000* *earth* :observer :sun :ref :eclipj2000)
+   :hmin (/ 27000 2)
+   :hmax (* 365.25 (convert-unit 'day 'second))
+   :tol 1d-11))
+
+(defun spinor-test-01 ()
+  (to-spinor-problem (cartesian-test-01)))

@@ -10,4 +10,5 @@
    (:file "time")
    (:file "body")
    (:file "cartesian")
+   (:file "spinor")
    (:file "examples")))
