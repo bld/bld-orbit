@@ -101,32 +101,16 @@
      :stoptol 1d-6)))
 
 (defmethod propagate ((p spinor-problem))
-  (with-slots (eom s0 sfmax x0s stopfn stopval stoptest stoptol tol) p
-    (rka-stop-nr
-     eom s0 sfmax x0s
-     :param p
-     :stopfn stopfn
-     :stopval stopval
-     :stoptest stoptest
-     :stoptol stoptol
-     :tol tol)))
-
-(defmethod propagate-spinor ((p cartesian-problem))
-  "Propagate cartesian problem with spinor equations of motion"
-  (with-slots (utc0 utcf eom x0 tol central-body) p
+  (with-slots (eom s0 sfmax x0s stopfn stopval stoptest stoptol tol central-body) p
     (with-kernel (slot-value central-body 'ephemeris)
-      (let ((x0s (to-spinor-state utc0 x0 :problem p))
-	    (s0 0)
-	    (sfmax (/ pi 10)))
-	(describe x0s)
-	(rka-stop-nr
-	 eom s0 sfmax x0s
-	 :param p
-	 :stopfn #'(lambda (s x p) (slot-value x 'utc))
-	 :stopval (slot-value p 'utcf)
-	 :stoptest #'>=
-	 :stoptol 1d-6
-	 :tol (/ tol 100))))))
+      (rka-stop-nr
+       eom s0 sfmax x0s
+       :param p
+       :stopfn stopfn
+       :stopval stopval
+       :stoptest stoptest
+       :stoptol stoptol
+       :tol tol))))
 
 (defmethod to-cartesian-results (results)
   (loop for (s xs) in results
