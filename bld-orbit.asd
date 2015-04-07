@@ -11,4 +11,5 @@
    (:file "body")
    (:file "cartesian")
    (:file "spinor")
+   (:file "ks")
    (:file "examples")))

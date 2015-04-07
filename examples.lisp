@@ -41,7 +41,7 @@
    :central-body *sun*
    :ref :eclipj2000
    :utc0 *utc-j2000*
-   :utcf (+ *utc-j2000* (* 2 365.25 (convert-unit 'day 'second)))
+   :utcf (+ *utc-j2000* (* 365.25 (convert-unit 'day 'second)))
    :eom #'eom
    :x0 (to-cartesian *utc-j2000* *earth* :observer :sun :ref :eclipj2000)
    :hmin (/ 27000 2)
@@ -50,3 +50,6 @@
 
 (defun spinor-test-01 ()
   (to-spinor-problem (cartesian-test-01)))
+
+(defun ks-test-01 ()
+  (to-ks-problem (spinor-test-01)))
