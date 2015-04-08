@@ -18,7 +18,7 @@
 	(ve3 :e2 1)
 	(ve3 :e3 1)))
 
-(defmethod eom (s (x spinor-state) p)
+(defmethod eom-kepler (s (x spinor-state) p)
   "Keplerian spinor equations of motion given independent variable S, spinor state, and spinor problem"
   (with-slots (u duds utc) x
     (with-slots (central-body) p
