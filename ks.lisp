@@ -1,16 +1,22 @@
 ;;;; Kustaanheimo-Stiefel equations of motion
 
-(defclass ks-state ()
+(in-package :bld-orbit)
+
+(defclass ks-kepler-state ()
   ((utc :initarg :utc)))
 
-(defstatearithmetic ks-state (utc))
+(defmethod print-object ((x ks-kepler-state) stream)
+  (with-slots (utc) x
+    (format stream "#<KS-KEPLER-STATE :UTC ~a>" utc)))
 
-(defmethod eom (s (x ks-state) p)
+(defstatearithmetic ks-kepler-state (utc))
+
+(defmethod eom-kepler (s (x ks-kepler-state) p)
   "Equations of motion for Kepler orbit using Kustaanheimo-Stiefel equations"
   (with-slots (alpha beta w0) p
     (let ((u (+ (* alpha (cos (* w0 s)))
 		(* beta (sin (* w0 s))))))
-      (make-instance 'ks-state :utc (norme2 u)))))
+      (make-instance 'ks-kepler-state :utc (norme2 u)))))
 
 (defclass ks-problem (spinor-problem)
   ((alpha :initarg :alpha :documentation "U at time 0")
@@ -18,7 +24,7 @@
    (w0 :initarg :w0 :documentation "specific angular velocity")
    (x0ks :initarg :x0ks :documentation "initial KS state")))
 
-(defmethod to-initial-ks-state (s (x0s spinor-state) (p spinor-problem))
+(defmethod to-initial-ks-kepler-state (s (x0s spinor-state) (p spinor-problem))
   (with-slots (u duds utc) x0s
     (with-slots (central-body) p
       (with-slots (mu) central-body
@@ -31,11 +37,11 @@
 	       (beta (+ (* u (sin (* w0 s)))
 			(* (/ duds w0) (cos (* w0 s))))))
 	  (values
-	   (make-instance 'ks-state :utc utc)
+	   (make-instance 'ks-kepler-state :utc utc)
 	   0 ; s = 0
 	   alpha beta w0)))))) ; return calculated orbit constants
 
-(defmethod to-spinor-state (s (x ks-state) &key problem)
+(defmethod to-spinor-state (s (x ks-kepler-state) &key problem)
   (with-slots (utc) x
     (with-slots (alpha beta w0) problem
       (let ((u (+ (* alpha (cos (* w0 s)))
@@ -57,7 +63,7 @@
 	 ;; Spinor
 	 x0s s0 sfmax stopfn stopval stoptest stoptol) p
     (multiple-value-bind (x0ks s0ks alpha beta w0)
-	(to-initial-ks-state s0 x0s p)
+	(to-initial-ks-kepler-state s0 x0s p)
       (make-instance
        'ks-problem
        ;; Cartesian problem slots
