@@ -13,6 +13,7 @@
 
 (defclass cartesian-problem ()
   ((central-body :initarg :central-body :documentation "Central body")
+   (nbodies :initarg :nbodies :documentation "Additional bodies to treat as perturbing point masses")
    (ref :initarg :ref :documentation "Reference frame")
    (utc0 :initarg :utc0 :documentation "Initial UTC time")
    (utcf :initarg :utcf :documentation "Final UTC time")
@@ -36,14 +37,28 @@
 	 :r (ve3 :e1 (aref rv 0) :e2 (aref rv 1) :e3 (aref rv 2))
 	 :v (ve3 :e1 (aref rv 3) :e2 (aref rv 4) :e3 (aref rv 5)))))))
 
-(defmethod eom (utc (x cartesian-state) (p cartesian-problem))
-  "Cartesian equations of motion"
-  (with-slots (central-body ref) p
+(defmethod eom-kepler (utc (x cartesian-state) (p cartesian-problem))
+  "Cartesian Keplerian equations of motion"
+  (with-slots (central-body) p
     (with-slots (r v) x
       (make-instance
        'cartesian-state
        :r v
        :v (gravity r central-body)))))
+
+(defmethod eom-nbody (utc (x cartesian-state) (p cartesian-problem))
+  "Cartesian equations of motion with central body plus other bodies as perturbing n-body forces"
+  (with-slots (central-body nbodies ref) p
+    (with-slots (r v) x
+      (make-instance
+       'cartesian-state
+       :r v
+       :v (apply
+	   #'+ (gravity r central-body)
+	   (loop for nb in nbodies
+	      for r-nb = (position-vector utc nb :ref ref :observer (slot-value central-body 'name))
+	      collect
+		(gravity (- r r-nb) nb)))))))
 
 (defmethod propagate ((p cartesian-problem))
   "Propagate a cartesian problem"
