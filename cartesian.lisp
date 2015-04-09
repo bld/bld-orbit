@@ -14,31 +14,32 @@
 (defclass cartesian-problem ()
   ((central-body :initarg :central-body :documentation "Central body")
    (nbodies :initarg :nbodies :documentation "Additional bodies to treat as perturbing point masses")
+   (spk :initarg :spk :documentation "SPK kernels to load for problem")
+   (lsk :initarg :lsk :documentation "LSK kernels to load for problem")
    (ref :initarg :ref :documentation "Reference frame")
-   (utc0 :initarg :utc0 :documentation "Initial UTC time")
-   (utcf :initarg :utcf :documentation "Final UTC time")
+   (et0 :initarg :et0 :documentation "Initial ephemeris time (seconds past J2000)")
+   (etf :initarg :etf :documentation "Final ephemeris time (seconds past J2000)")
    (eom :initarg :eom :documentation "Equation of motion function")
    (x0 :initarg :x0 :documentation "Initial state at UTC0")
    (hmin :initarg :hmin :documentation "Minimum step size")
    (hmax :initarg :hmax :documentation "Maximum step size")
    (tol :initarg :tol :documentation "Integration tolerance")))
 
-(defgeneric to-cartesian (utc b &key))
+(defgeneric to-cartesian (et b &key))
 
-(defmethod to-cartesian (utc (b body)
+(defmethod to-cartesian (et (b body)
 			 &key (ref (slot-value b 'ref))
 			   (observer (slot-value b 'center)))
   "Make a cartesian state from UTC time and body"
-  (with-slots (name ephemeris) b
-    (with-kernel ephemeris
-      (let ((rv (spk-ezr name (utc-to-epht utc) observer :ref ref)))
-	(make-instance
-	 'cartesian-state
-	 :r (ve3 :e1 (aref rv 0) :e2 (aref rv 1) :e3 (aref rv 2))
-	 :v (ve3 :e1 (aref rv 3) :e2 (aref rv 4) :e3 (aref rv 5)))))))
+  (with-slots (name) b
+    (let ((rv (spk-ezr name et observer :ref ref)))
+      (make-instance
+       'cartesian-state
+       :r (ve3 :e1 (aref rv 0) :e2 (aref rv 1) :e3 (aref rv 2))
+       :v (ve3 :e1 (aref rv 3) :e2 (aref rv 4) :e3 (aref rv 5))))))
 
-(defmethod eom-kepler (utc (x cartesian-state) (p cartesian-problem))
-  "Cartesian Keplerian equations of motion"
+(defmethod eom-kepler (et (x cartesian-state) (p cartesian-problem))
+  "Cartesian Keplerian equations of motion given ephemeris time, cartesian state, and cartesian problem object"
   (with-slots (central-body) p
     (with-slots (r v) x
       (make-instance
@@ -46,7 +47,7 @@
        :r v
        :v (gravity r central-body)))))
 
-(defmethod eom-nbody (utc (x cartesian-state) (p cartesian-problem))
+(defmethod eom-nbody (et (x cartesian-state) (p cartesian-problem))
   "Cartesian equations of motion with central body plus other bodies as perturbing n-body forces"
   (with-slots (central-body nbodies ref) p
     (with-slots (r v) x
@@ -56,16 +57,28 @@
        :v (apply
 	   #'+ (gravity r central-body)
 	   (loop for nb in nbodies
-	      for r-nb = (position-vector utc nb :ref ref :observer (slot-value central-body 'name))
-	      collect
-		(gravity (- r r-nb) nb)))))))
+	      ;; Position of n-body relative to central body
+	      for r-nb = (position-vector et nb :ref ref :observer (slot-value central-body 'name))
+	      ;; Position of spacecraft relative to n-body
+	      for r-sc-nb = (- r r-nb)
+	      ;; Direct n-body perturbation
+	      collect (gravity r-sc-nb nb)
+	      ;; Indirect n-body perturbation
+	      collect (gravity r-nb nb)))))))
 
 (defmethod propagate ((p cartesian-problem))
   "Propagate a cartesian problem"
-  (with-slots (eom utc0 utcf x0 hmin hmax tol central-body) p
-    ;; Pre-load central body kernel to speed up calculations
-    (with-kernel (slot-value central-body 'ephemeris)
-      (rka eom utc0 utcf x0 :param p :hmin hmin :hmax hmax :tol tol))))
+  (with-slots (eom et0 etf x0 hmin hmax tol central-body spk lsk) p
+    ;; Pre-load SPK and LSK kernels
+    (dolist (k spk) (unless (kernelp k) (furnsh k)))
+    (unless (kernelp lsk) (furnsh lsk))
+    ;; Integrate
+    (unwind-protect
+	 (rka eom et0 etf x0 :param p :hmin hmin :hmax hmax :tol tol)
+      ;; Unload kernels
+      (progn
+	(mapcar #'unload spk)
+	(unload lsk)))))
 
 (defmethod convert-results (results (problem cartesian-problem) &key (body (slot-value problem 'central-body)) (time-fn #'utc-to-epht) (observer (slot-value body 'center)) (ref :eclipj2000))
   "Convert results to alternative format given results and problem used to generate them. Keys specify:
