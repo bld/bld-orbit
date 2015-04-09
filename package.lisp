@@ -10,7 +10,7 @@
     min max signum)
   (:export
    ;; Time
-   *utc-j2000* utc-to-epht utc-to-timestamp
+   *utc-j2000* utc-to-timestamp
    ;; Body
    body gravity
    ;; Cartesian
