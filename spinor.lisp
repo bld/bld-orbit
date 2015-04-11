@@ -5,13 +5,13 @@
 (defclass spinor-state ()
   ((u :initarg :u)
    (duds :initarg :duds)
-   (utc :initarg :utc)))
+   (et :initarg :et)))
 
 (defmethod print-object ((x spinor-state) stream)
-  (with-slots (u duds utc) x
-    (format stream "#<SPINOR-STATE :U ~a :DUDS ~a :UTC ~a>" u duds utc)))
+  (with-slots (u duds et) x
+    (format stream "#<SPINOR-STATE :U ~a :DUDS ~a :ET ~a>" u duds et)))
 
-(defstatearithmetic spinor-state (u duds utc))
+(defstatearithmetic spinor-state (u duds et))
 
 (defparameter *iframe*
   (list (ve3 :e1 1)
@@ -20,7 +20,7 @@
 
 (defmethod eom-kepler (s (x spinor-state) p)
   "Keplerian spinor equations of motion given independent variable S, spinor state, and spinor problem"
-  (with-slots (u duds utc) x
+  (with-slots (u duds et) x
     (with-slots (central-body) p
       (with-slots (mu) central-body
 	(let* ((rm (norme2 u))
@@ -29,7 +29,7 @@
 	   'spinor-state
 	   :u duds
 	   :duds (/ (* e u) 2)
-	   :utc rm))))))
+	   :et rm))))))
 
 (defun recover-rotor-3d (fs es)
   (let* ((esr (apply #'recipbvs es))
@@ -47,8 +47,8 @@
 	  (unitg (*i r h))
 	  (unitg (dual h)))))
 
-(defmethod to-spinor-state (utc (x cartesian-state) &key (iframe *iframe*))
-  "Given time (UTC), cartesian state, and cartesian problem, return spinor state."
+(defmethod to-spinor-state (et (x cartesian-state) &key (iframe *iframe*))
+  "Given ephemeris time (seconds past J2000), cartesian state, and cartesian problem, return spinor state."
   (with-slots (r v) x
     (let ((u (recover-spinor-3d (norme r) (rv-frame r v) *iframe*)))
       (values
@@ -56,17 +56,17 @@
 	'spinor-state
 	:u u
 	:duds (/ (*g3 v u (first *iframe*)) 2)
-	:utc utc)
+	:et et)
        0))))
 
 (defmethod to-cartesian-state (s (x spinor-state) &key (iframe *iframe*))
-  (with-slots (u duds utc) x
+  (with-slots (u duds et) x
     (values
      (make-instance
       'cartesian-state
       :r (spin (first iframe) u)
       :v (graden (* 2 (*g3 (/ duds (norme2 u)) (ve3 :e1 1) (revg u))) 1))
-     utc)))
+     et)))
 
 (defclass spinor-problem (cartesian-problem)
   ((x0s :initarg :x0s)
@@ -78,41 +78,50 @@
    (stoptol :initarg :stoptol)))
 
 (defmethod to-spinor-problem ((p cartesian-problem))
-  (with-slots (central-body ref utc0 utcf eom x0 hmin hmax tol) p
+  (with-slots (central-body spk lsk ref et0 etf eom x0 hmin hmax tol) p
     (make-instance
      'spinor-problem
      ;; Cartesian problem slots
      :central-body central-body
+     :spk spk
+     :lsk lsk
      :ref ref
-     :utc0 utc0
-     :utcf utcf
-     :eom eom
+     :et0 et0
+     :etf etf
+     :eom #'eom-kepler
      :x0 x0
      :hmin hmin
      :hmax hmax
      :tol (/ tol 100)
      ;; New spinor slots
-     :x0s (to-spinor-state utc0 x0 :iframe *iframe*)
+     :x0s (to-spinor-state et0 x0 :iframe *iframe*)
      :s0 0
      :sfmax (/ pi 10)
-     :stopfn #'(lambda (s x p) (slot-value x 'utc))
-     :stopval utcf
+     :stopfn #'(lambda (s x p) (slot-value x 'et))
+     :stopval etf
      :stoptest #'>=
      :stoptol 1d-6)))
 
 (defmethod propagate ((p spinor-problem))
-  (with-slots (eom s0 sfmax x0s stopfn stopval stoptest stoptol tol central-body) p
-    (with-kernel (slot-value central-body 'ephemeris)
-      (rka-stop-nr
-       eom s0 sfmax x0s
-       :param p
-       :stopfn stopfn
-       :stopval stopval
-       :stoptest stoptest
-       :stoptol stoptol
-       :tol tol))))
-
+  (with-slots (eom s0 sfmax x0s stopfn stopval stoptest stoptol tol central-body spk lsk) p
+    ;; Pre-load SPK and LSK kernels
+    (dolist (k spk) (unless (kernelp k) (furnsh k)))
+    (unless (kernelp lsk) (furnsh lsk))
+    ;; Integrate
+    (unwind-protect
+	 (rka-stop-nr
+	  eom s0 sfmax x0s
+	  :param p
+	  :stopfn stopfn
+	  :stopval stopval
+	  :stoptest stoptest
+	  :stoptol stoptol
+	  :tol tol)
+      ;; Unload kernels
+      (progn
+	(mapcar #'unload spk)
+	(unload lsk)))))
+      
 (defmethod to-cartesian-results (results)
   (loop for (s xs) in results
      collect (reverse (multiple-value-list (to-cartesian-state s xs :iframe *iframe*)))))
-
