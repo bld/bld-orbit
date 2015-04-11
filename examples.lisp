@@ -62,10 +62,10 @@
    :hmax 27000d0
    :tol 1d-11))
 
-#|
 (defun spinor-test-01 ()
   (to-spinor-problem (cartesian-test-01)))
 
+#|
 (defun ks-test-01 ()
   (to-ks-problem (spinor-test-01)))
 |#
