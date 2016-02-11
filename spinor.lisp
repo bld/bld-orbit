@@ -59,7 +59,7 @@
 	   :u duds
 	   :duds (/ (+ (*g3 a r u) (* e u)) 2)
 	   :et rm))))))
-  
+
 (defun recover-rotor-3d (fs es)
   (let* ((esr (apply #'recipbvs es))
 	 (psi (apply #'+ 1 (mapcar #'(lambda (f er) (*g f er)) fs esr))))
@@ -118,7 +118,7 @@
      :ref ref
      :et0 et0
      :etf etf
-     :eom #'eom-nbody
+     :eom eom
      :x0 x0
      :hmin hmin
      :hmax hmax
