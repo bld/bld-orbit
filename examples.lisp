@@ -4,15 +4,18 @@
 
 (defparameter *spk-dir*
   (asdf:system-relative-pathname :bld-orbit "ephemeris/"))
-(defparameter *spk* "DE421AllPlanets.bsp")
+;;(defparameter *spk* "DE421AllPlanets.bsp")
+(defparameter *spk* "de430.bsp")
 (defparameter *spk-path*
   (princ-to-string (merge-pathnames-as-file *spk-dir* *spk*)))
 
 ;; Leap second kernels (LSK)
 
 (defparameter *lsk-dir*
-  (asdf:system-relative-pathname :bld-orbit "ephemeris-time/"))
-(defparameter *lsk* "naif0010.tls")
+;;  (asdf:system-relative-pathname :bld-orbit "ephemeris-time/"))
+  (asdf:system-relative-pathname :bld-orbit "ephemeris/"))
+;;(defparameter *lsk* "naif0010.tls")
+(defparameter *lsk* "naif0011.tls")
 (defparameter *lsk-path*
   (princ-to-string (merge-pathnames-as-file *lsk-dir* *lsk*)))
 
@@ -91,3 +94,6 @@
    :hmin 1d2
    :hmax 27000d0
    :tol 1d-12))
+
+(defun spinor-test-02 ()
+  (to-spinor-problem (cartesian-test-02)))
