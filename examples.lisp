@@ -58,7 +58,7 @@
    :ref :eclipj2000
    :et0 0d0
    :etf (convert-unit '(365.25 days) 'sec)
-   :eom #'eom-nbody
+   :eom #'eom-kepler
    :x0 (with-kernels (*spk-path* *lsk-path*)
 	 (to-cartesian 0d0 *earth* :observer :sun :ref :eclipj2000))
    :hmin 1d0
@@ -68,10 +68,8 @@
 (defun spinor-test-01 ()
   (to-spinor-problem (cartesian-test-01)))
 
-#|
 (defun ks-test-01 ()
-  (to-ks-problem (spinor-test-01)))
-|#
+  (to-ks-kepler-problem (spinor-test-01)))
 
 ;;; Test 02
 ;;; Spacecraft with initial condition at Sun-Earth L1 with solar and Earth gravity
