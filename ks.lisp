@@ -2,6 +2,8 @@
 
 (in-package :bld-orbit)
 
+;; KS Kepler state
+
 (defclass ks-kepler-state ()
   ((et :initarg :et)))
 
@@ -18,11 +20,44 @@
 		(* beta (sin (* w0 s))))))
       (make-instance 'ks-kepler-state :et (norme2 u)))))
 
-(defclass ks-problem (spinor-problem)
+;; KS general perturbed state
+
+(defclass ks-state ()
+  ((et :initarg :et :documentation "Ephemeris time")
+   (alpha :initarg :alpha :documentation "Initial spinor")
+   (beta :initarg :beta :documentation "Initial spinor derivative")
+   (e :initarg :e :documentation "Specific orbital energy")))
+
+(defmethod eom-perturbed (s (x ks-state) p)
+  (with-slots (w0 accelfn x0ks) p
+    (with-slots (et alpha beta e) x
+      (let* ((f (accelfn s x p)) ; force
+	     (xs (to-spinor-state s x :problem p)) ; spinor state
+	     (xc (to-cartesian-state s xs :problem p)) ; cartesian state
+	     (ff (* 1/2 ;; effective force
+		    (- (*g f (slot-value xc 'r))
+		       (slot-value x0ks 'e)
+		       e)
+		    (slot-value xs u))))
+	(make-instance ; KS state derivative
+	 'ks-state
+	 :et (norme r) ; ephemeris time
+	 :alpha (- (* (/ ff w0) (sin (* w0 s)))) ; initial spinor
+	 :beta (* (/ ff w0) (cos (* w0 s))) ; initial spinor derivative
+	 :e (*i (slot-value xc 'v) f)))))) ; specific orbit energy
+
+;; KS problem
+
+(defclass ks-kepler-problem (spinor-problem)
   ((alpha :initarg :alpha :documentation "U at time 0")
    (beta :initarg :beta :documentation "dU/dS at time 0")
    (w0 :initarg :w0 :documentation "specific angular velocity")
    (x0ks :initarg :x0ks :documentation "initial KS state")))
+
+(defclass ks-problem (spinor-problem)
+  ((w0 :initarg :w0)
+   (x0ks :initarg :x0ks)
+   (accelfn :initarg :accelfn :documentation "perturbation acceleration function")))
 
 (defmethod to-initial-ks-kepler-state (s (x0s spinor-state) (p spinor-problem))
   (with-slots (u duds et) x0s
@@ -41,6 +76,23 @@
 	   0 ; s = 0
 	   alpha beta w0)))))) ; return calculated orbit constants
 
+(defmethod to-initial-ks-state (s (x0s spinor-state) (p spinor-problem))
+  (with-slots (u duds et) x0s
+    (with-slots (central-body) p
+      (with-slots (mu) central-body
+	(let* ((rm (norme2 u))
+	       (e (/ (- (* 2 (norme2 duds)) mu) rm))
+	       (hk0 (- e))
+	       (w0 (sqrt (/ hk0 2)))
+	       (alpha (- (* u (cos (* w0 s)))
+			 (* (/ duds w0) (sin (* w0 s)))))
+	       (beta (+ (* u (sin (* w0 s)))
+			(* (/ duds w0) (cos (* w0 s))))))
+	  (values
+	   (make-instance 'ks-state :et et :alpha alpha :beta beta :e e)
+	   0 ; s = 0
+	   w0)))))) ; return calculated natural frequency
+
 (defmethod to-spinor-state (s (x ks-kepler-state) &key problem)
   (with-slots (et) x
     (with-slots (alpha beta w0) problem
@@ -56,7 +108,19 @@
 	  :et et)
 	 s)))))
 
-(defmethod to-ks-problem ((p spinor-problem))
+(defmethod to-spinor-state (s (x ks-state) &key problem)
+  "Convert KS general state to spinor state"
+  (with-slots (et alpha beta e) x
+    (with-slots (w0) problem
+      (make-instance
+       'spinor-state
+       :u (+ (* alpha (cos (* w0 s)))
+	     (* beta (sin (* w0 s))))
+       :duds (* w0 (- (* beta (cos (* w0 s)))
+		      (* alpha (sin (* w0 s)))))
+       :et et))))
+
+(defmethod to-ks-kepler-problem ((p spinor-problem))
   (with-slots
 	(;; Cartesian
 	 central-body nbodies spk lsk ref et0 etf eom x0 hmin hmax tol
@@ -65,7 +129,7 @@
     (multiple-value-bind (x0ks s0ks alpha beta w0)
 	(to-initial-ks-kepler-state s0 x0s p)
       (make-instance
-       'ks-problem
+       'ks-kepler-problem
        ;; Cartesian problem slots
        :central-body central-body
        :nbodies nbodies
@@ -93,7 +157,46 @@
        :w0 w0
        :x0ks x0ks))))
 
-(defmethod propagate ((p ks-problem))
+(defmethod to-ks-problem ((p spinor-problem))
+  (with-slots
+	(;; Cartesian
+	 central-body nbodies spk lsk ref et0 etf eom x0 hmin hmax tol
+	 ;; Spinor
+	 x0s s0 sfmax stopfn stopval stoptest stoptol) p
+    (multiple-value-bind (x0ks s0ks w0)
+	(to-initial-ks-state s0 x0s p)
+      (make-instance
+       'ks-problem
+       ;; Cartesian problem slots
+       :central-body central-body
+       :nbodies nbodies
+       :spk spk
+       :lsk lsk
+       :ref ref
+       :et0 et0
+       :etf etf
+       :eom eom
+       :x0 x0
+       :hmin hmin
+       :hmax hmax
+       :tol tol
+       ;; Spinor problem slots
+       :x0s x0s
+       :s0 s0ks
+       :sfmax sfmax
+       :stopfn stopfn
+       :stopval stopval
+       :stoptest stoptest
+       :stoptol stoptol
+       ;; KS problem slots
+       :w0 w0
+       :x0ks x0ks))))
+
+(defmethod to-ks-kepler-problem ((p cartesian-problem))
+  "Convert cartesian problem to Kustaanheimo-Stiefel problem"
+  (to-ks-kepler-problem (to-spinor-problem p)))
+
+(defmethod propagate ((p ks-kepler-problem))
   (with-slots (eom s0 sfmax x0ks stopfn stopval stoptest stoptol tol central-body spk lsk) p
     ;; Pre-load SPK and LSK kernels
     (dolist (k spk) (unless (kernelp k) (furnsh k)))
@@ -113,6 +216,6 @@
 	(mapcar #'unload spk)
 	(unload lsk)))))
 
-(defmethod to-spinor-results (results (p ks-problem))
+(defmethod to-spinor-results (results (p ks-kepler-problem))
   (loop for (s xks) in results
      collect (reverse (multiple-value-list (to-spinor-state s xks :problem p)))))
