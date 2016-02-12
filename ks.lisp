@@ -28,20 +28,23 @@
    (beta :initarg :beta :documentation "Initial spinor derivative")
    (e :initarg :e :documentation "Specific orbital energy")))
 
-(defmethod eom-perturbed (s (x ks-state) p)
+(defstatearithmetic ks-state (et alpha beta e))
+
+(defmethod eom-nbody (s (x ks-state) p)
   (with-slots (w0 accelfn x0ks) p
     (with-slots (et alpha beta e) x
-      (let* ((f (accelfn s x p)) ; force
-	     (xs (to-spinor-state s x :problem p)) ; spinor state
-	     (xc (to-cartesian-state s xs :problem p)) ; cartesian state
+      (let* ((xs (to-spinor-state s x :problem p)) ; spinor state
+	     (xc (to-cartesian-state s xs)) ; cartesian state
+	     (f (nbody-accel et (slot-value xc 'r) p)) ; n-body acceleration
 	     (ff (* 1/2 ;; effective force
-		    (- (*g f (slot-value xc 'r))
-		       (slot-value x0ks 'e)
-		       e)
-		    (slot-value xs u))))
+		    (*g
+		     (- (*g f (slot-value xc 'r))
+			(slot-value x0ks 'e)
+			e)
+		     (slot-value xs 'u)))))
 	(make-instance ; KS state derivative
 	 'ks-state
-	 :et (norme r) ; ephemeris time
+	 :et (norme (slot-value xc 'r)) ; ephemeris time
 	 :alpha (- (* (/ ff w0) (sin (* w0 s)))) ; initial spinor
 	 :beta (* (/ ff w0) (cos (* w0 s))) ; initial spinor derivative
 	 :e (*i (slot-value xc 'v) f)))))) ; specific orbit energy
@@ -112,13 +115,15 @@
   "Convert KS general state to spinor state"
   (with-slots (et alpha beta e) x
     (with-slots (w0) problem
-      (make-instance
-       'spinor-state
-       :u (+ (* alpha (cos (* w0 s)))
-	     (* beta (sin (* w0 s))))
-       :duds (* w0 (- (* beta (cos (* w0 s)))
-		      (* alpha (sin (* w0 s)))))
-       :et et))))
+      (values
+       (make-instance
+	'spinor-state
+	:u (+ (* alpha (cos (* w0 s)))
+	      (* beta (sin (* w0 s))))
+	:duds (* w0 (- (* beta (cos (* w0 s)))
+		       (* alpha (sin (* w0 s)))))
+	:et et)
+       s))))
 
 (defmethod to-ks-kepler-problem ((p spinor-problem))
   (with-slots
@@ -217,5 +222,9 @@
 	(unload lsk)))))
 
 (defmethod to-spinor-results (results (p ks-kepler-problem))
+  (loop for (s xks) in results
+     collect (reverse (multiple-value-list (to-spinor-state s xks :problem p)))))
+
+(defmethod to-spinor-results (results (p ks-problem))
   (loop for (s xks) in results
      collect (reverse (multiple-value-list (to-spinor-state s xks :problem p)))))
