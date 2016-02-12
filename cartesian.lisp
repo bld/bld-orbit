@@ -47,6 +47,23 @@
        :r v
        :v (gravity r central-body)))))
 
+(defmethod nbody-accel (et (r ve3) p)
+  (with-slots (central-body nbodies ref) p
+    (loop with obs = (slot-value central-body 'name) ; central body name
+       with f = (ve3) ; force vector to increment by each body
+       ;; iterate over n-bodies
+       for nb in nbodies
+       ;; Position of n-body relative to central body
+       for r-nb = (position-vector et nb :ref ref :observer obs)
+       ;; Position of spacecraft relative to n-body
+       for r-sc-nb = (- r r-nb)
+       ;; Increment total force
+       do (setf f (+ f
+		     (gravity r-sc-nb nb) ; Direct n-body force
+		     (gravity r-nb nb))) ; Indirect n-body force
+       ;; Return total force
+       finally (return f))))
+
 (defmethod eom-nbody (et (x cartesian-state) (p cartesian-problem))
   "Cartesian equations of motion with central body plus other bodies as perturbing n-body forces"
   (with-slots (central-body nbodies ref) p
@@ -54,18 +71,9 @@
       (make-instance
        'cartesian-state
        :r v
-       :v (apply
-	   #'+ (gravity r central-body)
-	   (loop for nb in nbodies
-	      ;; Position of n-body relative to central body
-	      for r-nb = (position-vector et nb :ref ref :observer (slot-value central-body 'name))
-	      ;; Position of spacecraft relative to n-body
-	      for r-sc-nb = (- r r-nb)
-	      ;; Direct n-body perturbation
-	      collect (gravity r-sc-nb nb)
-	      ;; Indirect n-body perturbation
-	      collect (gravity r-nb nb)))))))
-
+       :v (+ (gravity r central-body)
+	     (nbody-accel et r p))))))
+       
 (defmethod propagate ((p cartesian-problem))
   "Propagate a cartesian problem"
   (with-slots (eom et0 etf x0 hmin hmax tol central-body spk lsk) p
