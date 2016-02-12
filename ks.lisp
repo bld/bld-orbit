@@ -30,24 +30,37 @@
 
 (defstatearithmetic ks-state (et alpha beta e))
 
+(defmethod eom-kepler (s (x ks-state) p)
+  (let* ((xs (to-spinor-state s x :problem p))
+	 (xc (to-cartesian-state s xs)))
+    (make-instance
+     'ks-state
+     :et (norme (slot-value xc 'r))
+     :alpha (re3)
+     :beta (re3)
+     :e 0)))
+
 (defmethod eom-nbody (s (x ks-state) p)
   (with-slots (w0 accelfn x0ks) p
     (with-slots (et alpha beta e) x
       (let* ((xs (to-spinor-state s x :problem p)) ; spinor state
 	     (xc (to-cartesian-state s xs)) ; cartesian state
-	     (f (nbody-accel et (slot-value xc 'r) p)) ; n-body acceleration
+	     (r (slot-value xc 'r))
+	     (v (slot-value xc 'v))
+	     (rm (norme r))
+	     (f (nbody-accel et r p)) ; n-body acceleration
 	     (ff (* 1/2 ;; effective force
 		    (*g
-		     (- (*g f (slot-value xc 'r))
+		     (- (*g f r)
 			(slot-value x0ks 'e)
 			e)
 		     (slot-value xs 'u)))))
 	(make-instance ; KS state derivative
 	 'ks-state
-	 :et (norme (slot-value xc 'r)) ; ephemeris time
-	 :alpha (- (* (/ ff w0) (sin (* w0 s)))) ; initial spinor
-	 :beta (* (/ ff w0) (cos (* w0 s))) ; initial spinor derivative
-	 :e (*i (slot-value xc 'v) f)))))) ; specific orbit energy
+	 :et rm ; ephemeris time
+	 :alpha (- (* ff (/ (sin (* w0 s)) w0))) ; initial spinor
+	 :beta (* ff (/ (cos (* w0 s)) w0)) ; initial spinor derivative
+	 :e (* rm (scalar (*i v f)))))))) ; specific orbit energy
 
 ;; KS problem
 
@@ -202,6 +215,26 @@
   (to-ks-kepler-problem (to-spinor-problem p)))
 
 (defmethod propagate ((p ks-kepler-problem))
+  (with-slots (eom s0 sfmax x0ks stopfn stopval stoptest stoptol tol central-body spk lsk) p
+    ;; Pre-load SPK and LSK kernels
+    (dolist (k spk) (unless (kernelp k) (furnsh k)))
+    (unless (kernelp lsk) (furnsh lsk))
+    ;; Integrate
+    (unwind-protect
+	 (rka-stop-nr
+	  eom s0 sfmax x0ks
+	  :param p
+	  :stopfn stopfn
+	  :stopval stopval
+	  :stoptest stoptest
+	  :stoptol stoptol
+	  :tol tol)
+      ;; Unload kernels
+      (progn
+	(mapcar #'unload spk)
+	(unload lsk)))))
+
+(defmethod propagate ((p ks-problem))
   (with-slots (eom s0 sfmax x0ks stopfn stopval stoptest stoptol tol central-body spk lsk) p
     ;; Pre-load SPK and LSK kernels
     (dolist (k spk) (unless (kernelp k) (furnsh k)))
