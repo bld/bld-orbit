@@ -31,21 +31,6 @@
 	   :duds (/ (* e u) 2)
 	   :et rm))))))
 
-(defmethod nbody-accel (s (x spinor-state) p)
-  "Calculate n-body accelerations"
-  (with-slots (u et) x
-    (with-slots (central-body nbodies ref) p
-      (with-slots (name) central-body
-	(loop with r = (spin (first *iframe*) u)
-	   with a = (ve3)
-	   for nb in nbodies
-	   for r-nb = (position-vector et nb :ref ref :observer name)
-	   for r-sc-nb = (- r r-nb)
-	   do (setf a (+ a
-			 (gravity r-sc-nb nb) ; direct
-			 (gravity r-nb nb))) ; indirect
-	   finally (return a))))))
-	     
 (defmethod eom-nbody (s (x spinor-state) p)
   (with-slots (u duds et) x
     (with-slots (central-body) p
@@ -53,7 +38,7 @@
 	(let* ((rm (norme2 u))
 	       (e (/ (- (* 2 (norme2 duds)) mu) rm))
 	       (r (spin (first *iframe*) u))
-	       (a (nbody-accel s x p)))
+	       (a (nbody-accel et r p)))
 	  (make-instance
 	   'spinor-state
 	   :u duds
