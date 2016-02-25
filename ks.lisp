@@ -48,18 +48,16 @@
 	     (r (slot-value xc 'r))
 	     (v (slot-value xc 'v))
 	     (rm (norme r))
+	     (hk (- e))
+	     (w (- (/ hk 2) (expt w0 2)))
 	     (f (nbody-accel et r p)) ; n-body acceleration
-	     (ff (* 1/2 ;; effective force
-		    (*g
-		     (- (*g f r)
-			(slot-value x0ks 'e)
-			e)
-		     (slot-value xs 'u)))))
+	     (u (slot-value xs 'u))
+	     (ff (- (/ (*g f r u) 2) (* w u))))
 	(make-instance ; KS state derivative
 	 'ks-state
 	 :et rm ; ephemeris time
-	 :alpha (- (* ff (/ (sin (* w0 s)) w0))) ; initial spinor
-	 :beta (* ff (/ (cos (* w0 s)) w0)) ; initial spinor derivative
+	 :alpha (- (* (/ ff w0) (sin (* w0 s)))) ; initial spinor
+	 :beta (* (/ ff w0) (cos (* w0 s))) ; initial spinor derivative
 	 :e (* rm (scalar (*i v f)))))))) ; specific orbit energy
 
 ;; KS problem
