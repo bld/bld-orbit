@@ -4,8 +4,8 @@
 
 (defparameter *spk-dir*
   (asdf:system-relative-pathname :bld-orbit "ephemeris/"))
-;;(defparameter *spk* "DE421AllPlanets.bsp")
-(defparameter *spk* "de430.bsp")
+(defparameter *spk* "DE421AllPlanets.bsp")
+;;(defparameter *spk* "de430.bsp")
 (defparameter *spk-path*
   (princ-to-string (merge-pathnames-as-file *spk-dir* *spk*)))
 
@@ -61,7 +61,7 @@
    :eom #'eom-kepler
    :x0 (with-kernels (*spk-path* *lsk-path*)
 	 (to-cartesian 0d0 *earth* :observer :sun :ref :eclipj2000))
-   :hmin 1d0
+   :hmin 13500d0
    :hmax 27000d0
    :tol 1d-11))
 
@@ -95,3 +95,15 @@
 
 (defun spinor-test-02 ()
   (to-spinor-problem (cartesian-test-02)))
+
+(defun ks-test-02 ()
+  (to-ks-problem (spinor-test-02)))
+
+;; Test 03: Solar orbit, no n-body, fixed sail angle
+
+(defun cartesian-test-03 ()
+  (let ((p (cartesian-test-01)))
+    (with-slots (eom hmin) p
+      (setf eom #'eom-sail-fixed
+	    hmin 1d2))
+    p))

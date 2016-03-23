@@ -64,6 +64,23 @@
        ;; Return total force
        finally (return f))))
 
+(defmethod nbody-battin (et (r ve3) p)
+  (with-slots (central-body nbodies ref) p
+    (with-slots ((obs name)) central-body
+      (loop with acc = (ve3)
+	 for nb in nbodies
+	 for rho = (position-vector et nb :ref ref :observer obs)
+	 for d = (- r rho)
+	 for q = (scalar (*i (/ r (norme2 rho)) (- r (* 2 rho))))
+	 for f = (* q (/ (+ 3 (* 3 q) (expt q 2))
+			 (+ 1 (expt (+ 1 q) 3/2))))
+	 do (setf acc
+		  (+ acc
+		     (with-slots (mu) nb
+		       (- (* (/ mu (expt (norme d) 3))
+			     (+ r (* f rho)))))))
+	 finally (return acc)))))
+
 (defmethod eom-nbody (et (x cartesian-state) (p cartesian-problem))
   "Cartesian equations of motion with central body plus other bodies as perturbing n-body forces"
   (with-slots (central-body nbodies ref) p
@@ -73,6 +90,7 @@
        :r v
        :v (+ (gravity r central-body)
 	     (nbody-accel et r p))))))
+	     ;;(nbody-battin et r p))))))
        
 (defmethod propagate ((p cartesian-problem))
   "Propagate a cartesian problem"
@@ -97,3 +115,16 @@ REF: reference frame (default: :eclipj2000)"
   (loop for (utc x) in results
      for x-b = (to-cartesian utc body :observer observer :ref ref)
      collect (list (funcall time-fn utc) (+ x x-b))))
+
+(defmethod to-csv (results (problem cartesian-problem) &key (separator #\,) stream)
+  (write-csv
+   (append '(("Time" "X" "Y" "Z" "VX" "VY" "VZ"))
+	   (loop for (tm x) in results
+	      collect
+		(with-slots (r v) x
+		  (cons tm
+			(append
+			 (map 'list #'identity (coef r))
+			 (map 'list #'identity (coef v)))))))
+   :stream stream
+   :separator separator))
