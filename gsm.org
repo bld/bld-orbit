@@ -1,0 +1,29 @@
+#+TITLE: Generalized Sail Model in Geometric Algebra
+The cross product $\hat{n} \times \hat{r}$ is turned into the tensor
+product of a skew tensor of $\hat{n}$ and $\hat{r}$ as: $$\tilde{n} \cdot \hat{r}$$ where
+$$
+\tilde{n} = \begin{bmatrix}
+0 & -\hat{n}_3 & \hat{n}_2 \\
+\hat{n}_3 & 0 & -\hat{n}_1 \\
+-\hat{n}_2 & \hat{n}_1 & 0 
+\end{bmatrix}
+$$
+
+Instead, we can replace $\hat{n} \times \hat{r}$ with the geometric product
+$$
+\hat{n} \times \hat{r} = -I \hat{n} \wedge \hat{r}$
+$$
+
+This relation is used to calculate the component of solar force in the
+plane of the sail, as:
+$$
+\sin{\alpha} \hat{t} = -\hat{n} \times \left( \hat{n} \times \hat{r} \right)
+$$
+
+Instead of the double cross product, we can use the projection of
+$\hat{r}$ into the plane of the sail. The plane of the sail is:
+$$N = \hat{n}I$$
+and the projection is:
+$$
+\sin{\alpha} \hat{t} = \hat{r} \cdot N N^{-1}
+$$
