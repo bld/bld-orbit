@@ -5,7 +5,10 @@
 (in-package :bld-orbit)
 
 (defclass material ()
-  ((r :initarg :r)
+  ((a1 :initarg :a1)
+   (a2 :initarg :a2)
+   (a3 :initarg :a3)
+   (r :initarg :r)
    (s :initarg :s)
    (bf :initarg :bf)
    (ef :initarg :ef)
@@ -34,9 +37,16 @@
   (with-slots (r s) m
     (- 1 (* r s))))
 
+(defmethod initialize-instance :after ((m material) &key)
+  (when (not (slot-boundp m 'a1))
+    (setf (slot-value m 'a1) (a1 m)))
+  (when (not (slot-boundp m 'a2))
+    (setf (slot-value m 'a2) (a2 m)))
+  (when (not (slot-boundp m 'a3))
+    (setf (slot-value m 'a3) (a3 m))))
+
 (defclass gsm-coef ()
   ((m :initarg :m)
-   a1 a2 a3
    (j1 :initarg :j1)
    (j2 :initarg :j2)
    (j3 :initarg :j3)
@@ -44,14 +54,6 @@
    (k2 :initarg :k2)
    (k3 :initarg :k3))
   (:documentation "Coefficients for use in the GSM force and moment calculations"))
-
-(defmethod initialize-instance :after ((c gsm-coef) &key)
-  (with-slots (m a1 a2 a3) c
-    (setf
-     ;; Calculate derived material properties
-     a1 (a1 m)
-     a2 (a2 m)
-     a3 (a3 m))))
 
 (defmethod linear-function-2 ((m2 list) (v ve3))
   "Linear function of a list of VE3 vectors and a VE3"
@@ -73,28 +75,24 @@
 
 (defmethod gsm-force ((p number) (solarvb ve3) (c gsm-coef))
   (let ((sunvb (- solarvb)))
-    (with-slots (a1 a2 a3 j1 j2 j3 l k2 k3) c
-      (* p (- (* a2 (linear-function-2 j2 sunvb))
-	      (* a1 (linear-function-3 j3 sunvb))
-	      (* a3 (scalar (*i j1 sunvb)) sunvb))))))
+    (with-slots (m j1 j2 j3 l k2 k3) c
+      (with-slots (a1 a2 a3) m
+	(* p (- (* a2 (linear-function-2 j2 sunvb))
+		(* a1 (linear-function-3 j3 sunvb))
+		(* a3 (scalar (*i j1 sunvb)) sunvb)))))))
 
 (defmethod gsm-moment ((p number) (solarvb ve3) (c gsm-coef))
   (let ((sunvb (- solarvb)))
-    (with-slots (a1 a2 a3 j1 j2 j3 l k2 k3) c
-      (* p (- (* a2 (linear-function-2 k2 sunvb))
-	      (* a1 (linear-function-3 k3 sunvb))
-	      (* a3 (*x (linear-function-2 l sunvb) sunvb)))))))
+    (with-slots (m j1 j2 j3 l k2 k3) c
+      (with-slots (a1 a2 a3) m
+	(* p (- (* a2 (linear-function-2 k2 sunvb))
+		(* a1 (linear-function-3 k3 sunvb))
+		(* a3 (*x (linear-function-2 l sunvb) sunvb))))))))
 		       
 (defmethod gsm-force-moment ((p number) (solarvb ve3) (c gsm-coef))
   (values
    (gsm-force p solarvb c)
    (gsm-moment p solarvb c)))
-
-(defmethod vv-to-ve3 ((vv vector))
-  (map 'list #'(lambda (v) (make-instance 've3 :coef v)) vv))
-
-(defmethod vvv-to-ve3 ((vvv vector))
-  (map 'list #'(lambda (vv) (vv-to-ve3 vv)) vvv))
 
 (defmethod tensor2-to-ve3 ((a array))
   "Convert 2D tensor's columns to list of VE3 vectors"
