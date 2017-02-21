@@ -28,6 +28,10 @@
    (beta :initarg :beta :documentation "Initial spinor derivative")
    (e :initarg :e :documentation "Specific orbital energy")))
 
+(defmethod print-object ((x ks-state) stream)
+  (with-slots (et alpha beta e) x
+    (format stream "#<KS-STATE :ET ~a :ALPHA ~a :BETA ~a :E ~a>" et alpha beta e)))
+
 (defstatearithmetic ks-state (et alpha beta e))
 
 (defmethod eom-kepler (s (x ks-state) p)
