@@ -7,6 +7,7 @@
   :serial t
   :components
   ((:file "package")
+   (:file "stumpff")
    (:file "time")
    (:file "body")
    (:file "cartesian")
