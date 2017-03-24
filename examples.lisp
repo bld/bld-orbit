@@ -49,21 +49,23 @@
 ;;; Spacecraft with initial condition of Earth at J2000 with only solar gravity
 
 (defun cartesian-test-01 ()
-  (make-instance
-   'cartesian-problem
-   :central-body *sun*
-   :nbodies nil
-   :spk (list *spk-path*)
-   :lsk *lsk-path*
-   :ref :eclipj2000
-   :et0 0d0
-   :etf (convert-unit '(365.25 days) 'sec)
-   :eom #'eom-kepler
-   :x0 (with-kernels (*spk-path* *lsk-path*)
-	 (to-cartesian 0d0 *earth* :observer :sun :ref :eclipj2000))
-   :hmin 13500d0
-   :hmax 27000d0
-   :tol 1d-11))
+  (with-kernels (*spk-path* *lsk-path*)
+    (let* ((et0 (string-to-ephemeris-time "2451545 JD"))
+	   (etf (+ et0 (convert-unit '(365.25 days) 'sec))))
+      (make-instance
+       'cartesian-problem
+       :central-body *sun*
+       :nbodies nil
+       :spk (list *spk-path*)
+       :lsk *lsk-path*
+       :ref :eclipj2000
+       :et0 et0
+       :etf etf
+       :eom #'eom-kepler
+       :x0 (to-cartesian et0 *earth* :observer :sun :ref :eclipj2000)
+       :hmin 13500d0
+       :hmax 27000d0
+       :tol 1d-11))))
 
 (defun spinor-test-01 ()
   (to-spinor-problem (cartesian-test-01)))
@@ -91,7 +93,7 @@
         :v (ve3 :e1 -29.49719930077679d0 :e2 -5.414763857333822d0 :e3 0.000179932481943812d0))
    :hmin 1d2
    :hmax 27000d0
-   :tol 1d-12))
+   :tol 1d-11))
 
 (defun spinor-test-02 ()
   (to-spinor-problem (cartesian-test-02)))
