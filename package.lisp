@@ -11,6 +11,8 @@
   (:export
    ;; Time
    *utc-j2000* utc-to-timestamp
+   ;; Stumpff functions
+   c0 c1
    ;; Body
    body gravity
    ;; Cartesian
