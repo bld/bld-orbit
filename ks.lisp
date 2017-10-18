@@ -2,6 +2,21 @@
 
 (in-package :bld-orbit)
 
+;; KS problem classes
+
+(defclass ks-kepler-problem (spinor-problem)
+  ((alpha :initarg :alpha :documentation "U at time 0")
+   (beta :initarg :beta :documentation "dU/dS at time 0")
+   (w0 :initarg :w0 :documentation "specific angular velocity")
+   (x0ks :initarg :x0ks :documentation "initial KS state"))
+  (:documentation "Kustaanheimo-Stiefel Kepler problem for closed orbits"))
+
+(defclass ks-problem (spinor-problem)
+  ((w0 :initarg :w0 :documentation "initial specific angular velocity")
+   (x0ks :initarg :x0ks :documentation "initial KS state")
+   (accelfn :initarg :accelfn :documentation "perturbation acceleration function"))
+  (:documentation "Kustaanheimo-Stiefel perturbed orbit element problem for closed orbits"))
+
 ;; KS Kepler state
 
 (defclass ks-kepler-state ()
@@ -13,7 +28,7 @@
 
 (defstatearithmetic ks-kepler-state (et))
 
-(defmethod eom-kepler (s (x ks-kepler-state) p)
+(defmethod eom-kepler (s (x ks-kepler-state) (p ks-kepler-problem))
   "Equations of motion for Kepler orbit using Kustaanheimo-Stiefel equations"
   (with-slots (alpha beta w0) p
     (let ((u (+ (* alpha (cos (* w0 s)))
@@ -34,7 +49,7 @@
 
 (defstatearithmetic ks-state (et alpha beta e))
 
-(defmethod eom-kepler (s (x ks-state) p)
+(defmethod eom-kepler (s (x ks-state) (p ks-kepler-problem))
   (let* ((xs (to-spinor-state s x :problem p))
 	 (xc (to-cartesian-state s xs)))
     (make-instance
@@ -44,7 +59,7 @@
      :beta (re3)
      :e 0)))
 
-(defmethod eom-nbody (s (x ks-state) p)
+(defmethod eom-nbody (s (x ks-state) (p ks-problem))
   (with-slots (w0 accelfn x0ks) p
     (with-slots (et alpha beta e) x
       (let* ((xs (to-spinor-state s x :problem p)) ; spinor state
@@ -64,18 +79,7 @@
 	 :beta (* (/ ff w0) (cos (* w0 s))) ; initial spinor derivative
 	 :e (* rm (scalar (*i v f)))))))) ; specific orbit energy
 
-;; KS problem
-
-(defclass ks-kepler-problem (spinor-problem)
-  ((alpha :initarg :alpha :documentation "U at time 0")
-   (beta :initarg :beta :documentation "dU/dS at time 0")
-   (w0 :initarg :w0 :documentation "specific angular velocity")
-   (x0ks :initarg :x0ks :documentation "initial KS state")))
-
-(defclass ks-problem (spinor-problem)
-  ((w0 :initarg :w0)
-   (x0ks :initarg :x0ks)
-   (accelfn :initarg :accelfn :documentation "perturbation acceleration function")))
+;; Convert between KS and other states
 
 (defmethod to-initial-ks-kepler-state (s (x0s spinor-state) (p spinor-problem))
   (with-slots (u duds et) x0s
