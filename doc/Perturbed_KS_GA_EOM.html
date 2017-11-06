@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Perturbed Kustaanheimo and Stiefel Equations of Orbital Motion in Geometric Algebra</title>
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js?config=TeX-MML-AM_CHTML'></script>
+  </head>
+
+  <body>
+    <h1>Perturbed Kustaanheimo and Stiefel Equations of Orbital Motion in Geometric Algebra</h1>
+
+
+    <h2>Initial KS state from spinor state</h2>
+    <h3>Solution for spinor `bb u`</h3>
+    <p>`bb u = bb beta s c_1 - bb alpha c_0`</p>
+    <p>Where:</p>
+    <ul>
+      <li>`alpha_0 = -E/2-V/2`</li>
+      <li>`c_0 = c_0(alpha_0 s^2)`</li>
+      <li>`c_1 = c_1(alpha_0 s^2)`</li>
+    </ul>
+    <h3>Compute `bb alpha` as function of `bb beta` and `bb u`</h3>
+    <p> `bb alpha c_0 = bb beta s c_1 - bb u`</p>
+    <p> `bb alpha = (bb beta s c_1 - bb u) / c_0`</p>
+    <h3> Solution for spinor derivative `bb u'`</h3>
+    <p> `bb u' = bb beta c_0 + alpha_0 bb alpha s c_1`</p>
+    <h3>Substitute `bb alpha` and find `bb beta` as function of `bb u` and `bb u'`</h3>
+    <p> `bb u' = bb beta c_0 + alpha_0 ((bb beta s c_1 - bb u) / c_0) s c_1`</p>
+    <p> `bb u' = bb beta c_0 + alpha_0/c_0 bb beta s^2 c_1^2 - bb u s c_1 alpha_0 / c_0`</p>
+    <p> `bb u' + bb u s c_1 alpha_0/c_0 = bb beta ( c_0 + alpha_0/c_0 s^2 c_1^2)`</p>
+    <p> `bb u' c_0 + bb u s c_1 alpha_0 = bb beta (c_0^2 + alpha_0 s^2 c_1^2)`</p>
+    <p> `c_0(alpha_0 s^2)^2 + alpha_0 s^2 c_1(alpha_0 s^2)^2 = 1`</p>
+    <p> `bb beta = bb u' c_0 + bb u s c_1 alpha_0`</p>
+    <h3>Substitute `bb beta` and solve for `bb alpha` as function of `bb u` and `bb u'`</h3>
+    <p> `bb alpha = ((bb u' c_0 + bb u s c_1 alpha_0) s c_1 - bb u) / c_0`</p>
+    <p> `bb alpha = bb u' s c_1 + bb u / c_0 (s^2 c_1^2 alpha_0 - 1)`</p>
+    <p> `alpha_0 s^2 c_1(alpha_0 s^2)^2 - 1 = -c_0(alpha_0 s^2)^2`</p>
+    <p> `bb alpha = bb u' s c_1 + bb u / c_0 (-c_0^2)`</p>
+    <p> `bb alpha = bb u' s c_1 - bb u c_0`</p>
+
+    <h2>Derivation from trigonometric function solution</h2>
+    <h3>Definitions</h3>
+    <ul>
+      <li>`bb alpha = bb u_(t_0)`</li>
+      <li>`bb beta = (bb u'_(t_0))/omega_0`</li>
+      <li>`omega_0 = sqrt(h_(K,0)/2)`</li>
+      <li>`h_(K,0) = -E|_(t_0)`</li>
+      <li>`c_0(x) |_(x>0) = cos(sqrt(x))`</li>
+      <li>`c_1(x) |_(x>0) = sin(sqrt(x)) / sqrt(x)`</li>
+    </ul>
+    <h3>Solution for `bb alpha`</h3>
+    <p>`bb alpha = bb u cos(omega_0 s) - (bb u') / omega_0 sin(omega_0 s)`</p>
+    <p>`omega_0 s = sqrt(h_(K,0)/2 s^2)`</p>
+    <p>`cos(omega_0 s) = c_0(h_(K,0)/2 s^2)`</p>
+    <p>`h_(K,0)/2 = -E/2 = alpha_0` assuming evaluation at `t_0` and `V=0`</p>
+    <p>`cos(omega_0 s) = c_0(alpha_0 s^2)`</p>
+    <p>`sin(omega_0 s) = sin(sqrt(alpha_0 s^2))`</p>
+    <p>`sin(sqrt(alpha_0 s^2)) = c_1(alpha_0 s^2) sqrt(alpha_0 s^2)`</p>
+    <p>`omega_0 = sqrt(alpha_0 s^2) / s`</p>
+    <p>`bb alpha = bb u c_0(alpha_0 s^2) - bb u' (s / sqrt(alpha_0 s^2)) c_1(alpha_0 s^2) sqrt(alpha_0 s^2)`</p>
+    <p>`bb alpha = bb u c_0(alpha_0 s^2) - bb u' s c_1(alpha_0 s^2)`</p>
+    <p>`bb alpha = bb u c_0 - bb u' s c_1`</p>
+    <p>If `bb alpha = -bb u_(t_0)`, then: `bb alpha = bb u' s c_1 - bb u c_0`</p>
+    <h3>Solution for `bb beta`</h3>
+    <p>`bb beta = bb u sin(omega_0 s) + (bb u')/omega_0 cos(omega_0 s)`</p>
+    <p>`bb beta = bb u c_1(alpha_0 s^2) sqrt(alpha_0 s^2) + (bb u')/omega_0 c_0(alpha_0 s^2)`</p>
+    <p>`sqrt(alpha_0 s^2) = s omega_0`</p>
+    <p>`(bb u'_(t_0))/omega_0 = bb u c_1(alpha_0 s^2) s omega_0 + (bb u')/omega_0 c_0(alpha_0 s^2)`</p>
+    <p>`bb u'_(t_0) = bb u c_1(alpha_0 s^2) s omega_0^2 + bb u' c_0(alpha_0 s^2)`</p>
+    <p>`omega_0^2 = (sqrt(alpha_0 s^2) / s)^2 = alpha_0`</p>
+    <p>Finally: `bb u'_(t_0) = bb u c_1 s alpha_0 + bb u' c_0` which is equivalent to the prior solution for `bb beta`.</p>
+    
+    
+    
+  </body>
+</html>
