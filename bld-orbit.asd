@@ -13,5 +13,6 @@
    (:file "cartesian")
    (:file "spinor")
    (:file "ks")
+   (:file "ks-stumpff")
    (:file "sc")
    (:file "examples")))

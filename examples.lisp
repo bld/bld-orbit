@@ -73,6 +73,9 @@
 (defun ks-test-01 ()
   (to-ks-kepler-problem (spinor-test-01)))
 
+(defun ks-kepler-stumpff-test-01 ()
+  (to-ks-kepler-stumpff-problem (spinor-test-01)))
+
 ;;; Test 02
 ;;; Spacecraft with initial condition at Sun-Earth L1 with solar and Earth gravity
 
@@ -91,15 +94,18 @@
 	'cartesian-state
 	:r (ve3 :e1 -26234827.5935499d0 :e2 143254606.4839523d0 :e3 -605.1121386736631d0)
         :v (ve3 :e1 -29.49719930077679d0 :e2 -5.414763857333822d0 :e3 0.000179932481943812d0))
-   :hmin 1d2
+   :hmin 100d0
    :hmax 27000d0
-   :tol 1d-11))
+   :tol 1d-13))
 
 (defun spinor-test-02 ()
   (to-spinor-problem (cartesian-test-02)))
 
 (defun ks-test-02 ()
   (to-ks-problem (spinor-test-02)))
+
+(defun ks-stumpff-test-02 ()
+  (to-ks-stumpff-problem (spinor-test-02)))
 
 ;; Test 03: Solar orbit, no n-body, fixed sail angle
 
