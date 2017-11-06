@@ -6,7 +6,7 @@
 
 (defclass ks-kepler-problem (spinor-problem)
   ((alpha :initarg :alpha :documentation "U at time 0")
-   (beta :initarg :beta :documentation "dU/dS at time 0")
+   (beta :initarg :beta :documentation "dU/dS / w0 at time 0")
    (w0 :initarg :w0 :documentation "specific angular velocity")
    (x0ks :initarg :x0ks :documentation "initial KS state"))
   (:documentation "Kustaanheimo-Stiefel Kepler problem for closed orbits"))
@@ -267,3 +267,6 @@
 (defmethod to-spinor-results (results (p ks-problem))
   (loop for (s xks) in results
      collect (reverse (multiple-value-list (to-spinor-state s xks :problem p)))))
+
+(defun ks-to-cartesian-results (results p)
+  (to-cartesian-results (to-spinor-results results p)))
