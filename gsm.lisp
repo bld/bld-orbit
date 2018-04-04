@@ -73,22 +73,20 @@
 	 (m2t (transpose-ve3-list m2)))
     (linear-function-2 m2t v)))
 
-(defmethod gsm-force ((p number) (solarvb ve3) (c gsm-coef))
-  (let ((sunvb (- solarvb)))
-    (with-slots (m j1 j2 j3 l k2 k3) c
-      (with-slots (a1 a2 a3) m
-	(* p (- (* a2 (linear-function-2 j2 sunvb))
-		(* a1 (linear-function-3 j3 sunvb))
-		(* a3 (scalar (*i j1 sunvb)) sunvb)))))))
+(defmethod gsm-force (p (sunvb ve3) (c gsm-coef))
+  (with-slots (m j1 j2 j3 l k2 k3) c
+    (with-slots (a1 a2 a3) m
+      (* p (- (* a2 (linear-function-2 j2 sunvb))
+	      (* a1 (linear-function-3 j3 sunvb))
+	      (* a3 (scalar (*i j1 sunvb)) sunvb))))))
 
-(defmethod gsm-moment ((p number) (solarvb ve3) (c gsm-coef))
-  (let ((sunvb (- solarvb)))
-    (with-slots (m j1 j2 j3 l k2 k3) c
-      (with-slots (a1 a2 a3) m
-	(* p (- (* a2 (linear-function-2 k2 sunvb))
-		(* a1 (linear-function-3 k3 sunvb))
-		(* a3 (*x (linear-function-2 l sunvb) sunvb))))))))
-		       
+(defmethod gsm-moment (p (sunvb ve3) (c gsm-coef))
+  (with-slots (m j1 j2 j3 l k2 k3) c
+    (with-slots (a1 a2 a3) m
+      (* p (- (* a2 (linear-function-2 k2 sunvb))
+	      (* a1 (linear-function-3 k3 sunvb))
+	      (* a3 (*x (linear-function-2 (transpose-ve3-list l) sunvb) sunvb)))))))
+
 (defmethod gsm-force-moment ((p number) (solarvb ve3) (c gsm-coef))
   (values
    (gsm-force p solarvb c)
@@ -104,6 +102,7 @@
 	     (setf (aref (coef v) j) (aref a j i)))
 	   v))))
 
+#|
 (defmethod tensor3-to-ve3 ((a array))
   "Convert columns of 3D tensor to list (of lists) of VE3 vectors"
   (destructuring-bind (d1 d2 d3) (array-dimensions a)
@@ -115,6 +114,7 @@
 		(dotimes (k d2)
 		  (setf (aref (coef v) k) (aref a i k j)))
 		v)))))
+|#
 
 (defun parse-tensor (tdef)
   (let ((size (rest (assoc :--*array-size-- tdef)))
@@ -125,7 +125,7 @@
 	 for i below (apply #'* size)
 	 do (setf (row-major-aref a i) ai))
       a)))
-			     
+
 (defun decode-coef-json (f)
   (with-open-file (s f)
     (let ((parsed (json:decode-json s)))
@@ -138,14 +138,15 @@
        (parse-tensor (rest (assoc :k-3 parsed)))))))
 
 (defun load-coef-json (f m)
-  (destructuring-bind (j1 j2 j3 l k2 k3) (decode-coef-json f)
+  (destructuring-bind (j1 j2 j3 l k2 k3)
+      (let ((*read-default-float-format* 'double-float))
+	(decode-coef-json f))
     (make-instance
      'gsm-coef
      :m m
      :j1 (make-instance 've3 :coef j1)
-     :j2 (tensor2-to-ve3 j2)
+     :j2 (tensor2-to-ve3 (bld-linalg:transpose j2))
      :j3 (tensor3-to-ve3 j3)
-     :l (tensor2-to-ve3 l)
-     :k2 (tensor2-to-ve3 k2)
+     :l (tensor2-to-ve3 (bld-linalg:transpose l))
+     :k2 (tensor2-to-ve3 (bld-linalg:transpose k2))
      :k3 (tensor3-to-ve3 k3))))
-
