@@ -237,10 +237,10 @@
 	  :stoptest stoptest
 	  :stoptol stoptol
 	  :tol tol
-	  :a *a-dp45*
-	  :bl *bl-dp45*
-	  :bh *bh-dp45*
-	  :c *c-dp45*)
+	  :a bld-ode::*a-dp78*
+	  :bl bld-ode::*bl-dp78*
+	  :bh bld-ode::*bh-dp78*
+	  :c bld-ode::*c-dp78*)
       ;; Unload kernels
       (progn
 	(mapcar #'unload spk)
